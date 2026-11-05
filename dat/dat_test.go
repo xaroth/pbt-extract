@@ -261,3 +261,26 @@ func TestParseSchemaErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestColumn(t *testing.T) {
+	t.Parallel()
+	def := tableDef(t)
+	testCases := []struct {
+		name   string
+		want   int
+		wantOK bool
+	}{
+		{name: "Id", want: 0, wantOK: true},
+		{name: "Names", want: 12, wantOK: true},
+		{name: "Missing", want: 0, wantOK: false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := def.Column(testCase.name)
+			if got != testCase.want || ok != testCase.wantOK {
+				t.Errorf("Column(%q): got %d, %v, want %d, %v", testCase.name, got, ok, testCase.want, testCase.wantOK)
+			}
+		})
+	}
+}

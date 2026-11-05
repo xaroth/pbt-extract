@@ -108,3 +108,13 @@ func (t TableDef) RowSize() int {
 	}
 	return n
 }
+
+// Column returns the index of the column with the given name.
+func (t TableDef) Column(name string) (int, bool) {
+	for i, c := range t.Columns {
+		if c.Name != nil && *c.Name == name {
+			return i, true
+		}
+	}
+	return 0, false
+}

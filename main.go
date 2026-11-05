@@ -3,11 +3,13 @@
 //	pbt-extract [-ooz path] get <dir> <path>
 //	pbt-extract [-ooz path] table <dir> <version> <table>
 //	pbt-extract [-ooz path] stats <dir> <object>
+//	pbt-extract [-ooz path] dataset <dir> <version> <out>
 //
 // get writes the file at path (for example Data/Stats.datc64) to stdout. table decodes
 // Data/<table>.datc64 with the dat-schema build stored for version and writes one JSON object
 // per row. stats writes the Stats block of an object template such as
-// Metadata/Characters/Str/Str, merged over its extends chain, as one JSON object. dir is the game install or archive that holds Bundles2.
+// Metadata/Characters/Str/Str, merged over its extends chain, as one JSON object. dataset writes the pbt dataset for version into the
+// directory out. dir is the game install or archive that holds Bundles2.
 package main
 
 import (
@@ -19,6 +21,9 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/xaroth/pbt-engine/dataset"
+
+	"github.com/xaroth/pbt-extract/build"
 	"github.com/xaroth/pbt-extract/bundle"
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ooz"
@@ -26,7 +31,7 @@ import (
 	"github.com/xaroth/pbt-extract/versions"
 )
 
-const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>"
+const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>\n       pbt-extract [-ooz path] dataset <dir> <version> <out>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -76,8 +81,51 @@ func run(args []string) error {
 			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(s)
+	case cmd[0] == "dataset" && len(cmd) == 4:
+		a, err := open()
+		if err != nil {
+			return err
+		}
+		return writeDataset(a, cmd[2], cmd[3])
 	}
 	return errors.New(usage)
+}
+
+func loadSchema(v versions.Version) (*dat.Schema, error) {
+	sb, err := v.Schema()
+	if err != nil {
+		return nil, err
+	}
+	return dat.ParseSchema(sb)
+}
+
+func writeDataset(a *bundle.Archive, version, out string) error {
+	v, err := versions.Lookup("poe1", version)
+	if err != nil {
+		return fmt.Errorf("version %s: %w", version, err)
+	}
+	schema, err := loadSchema(v)
+	if err != nil {
+		return err
+	}
+	src, err := v.Source()
+	if err != nil {
+		return err
+	}
+	d, err := build.Dataset(a, schema)
+	if err != nil {
+		return err
+	}
+	d.Manifest = dataset.Manifest{
+		Game:    v.Game,
+		Version: v.Name,
+		Source:  map[string]string{"steamManifest": src.SteamManifest, "datSchemaCommit": src.DatSchemaCommit},
+	}
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		return err
+	}
+	_, err = dataset.Write(out, d)
+	return err
 }
 
 func writeTable(a *bundle.Archive, version, name string) error {
@@ -85,11 +133,7 @@ func writeTable(a *bundle.Archive, version, name string) error {
 	if err != nil {
 		return fmt.Errorf("version %s: %w", version, err)
 	}
-	sb, err := v.Schema()
-	if err != nil {
-		return err
-	}
-	schema, err := dat.ParseSchema(sb)
+	schema, err := loadSchema(v)
 	if err != nil {
 		return err
 	}
