@@ -2,3 +2,6 @@ pbt-extract
 Copyright 2026 Xaroth Brook
 
 Originally created by Xaroth Brook (https://github.com/xaroth/pbt-extract).
+
+versions/*/*/schema.json are builds of dat-schema (https://github.com/poe-tool-dev/dat-schema),
+Copyright (c) 2021 Alexander Drozdov, MIT licence, see versions/LICENSE-dat-schema.
