@@ -2,7 +2,7 @@
 
 Reads Path of Exile game files and builds the datasets that [pbt-engine](https://github.com/xaroth/pbt-engine) loads.
 
-Status: early. It reads files by path from a game install or `Bundles2` archive.
+Status: early. It reads files and tables from a game install or `Bundles2` archive.
 
 ## Use
 
@@ -10,7 +10,20 @@ Requires Go 1.27 and [ooz](https://github.com/zao/ooz) (GPL-3.0, run as a separa
 
 ```sh
 go run . -ooz /path/to/ooz get /path/to/game Data/Stats.datc64 > Stats.datc64
+go run . -ooz /path/to/ooz table /path/to/game 3.29.3.3 Stats > Stats.jsonl
 ```
+
+`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row.
+
+## Game versions
+
+`versions/<game>/<version>/` holds `schema.json` (the dat-schema build that matches the version) and `source.json` (Steam manifest and dat-schema commit). Add a version with:
+
+```sh
+scripts/add-version.sh poe1 <version> <steam-manifest> <dat-schema-commit>
+```
+
+It needs git, node and npm. Pick the dat-schema commit closest after the patch, and check that the tables you read decode without a row size error.
 
 ## Develop
 
