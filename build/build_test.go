@@ -3,6 +3,7 @@ package build_test
 import (
 	"bytes"
 	"encoding/binary"
+	"maps"
 	"testing"
 	"testing/fstest"
 	"unicode/utf16"
@@ -20,7 +21,7 @@ import (
 const schemaJSON = `{"version": 7, "tables": [
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Characters", "columns": [
-		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"},
+		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
 		{"name": "BaseStrength", "type": "i32"}, {"name": "BaseDexterity", "type": "i32"},
 		{"name": "BaseIntelligence", "type": "i32"}, {"name": "BaseMaxLife", "type": "i32"},
 		{"name": "BaseMaxMana", "type": "i32"}]},
@@ -151,7 +152,7 @@ func game() fstest.MapFS {
 			[]any{"level"}, []any{"life_per_level"}, []any{"base_speed"}, []any{"base_strength"}, []any{"aura_damage_+%"},
 		)},
 		"Data/Characters.datc64": {Data: datc64(
-			[]any{"Metadata/Characters/Str/Str", "Marauder", int32(32), int32(14), int32(14), int32(38), int32(34)},
+			[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
 		)},
 		"Data/PassiveSkills.datc64": {Data: datc64(
 			passive(1, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
@@ -219,19 +220,19 @@ func TestDataset(t *testing.T) {
 		return dataset.Tree{
 			Variant: variant, TotalPoints: 123, AscendancyPoints: 8,
 			Classes: []dataset.Class{{
-				Name: "Marauder", BaseStrength: 32, BaseDexterity: 14, BaseIntelligence: 14, StartNode: 1,
-				Ascendancies: []dataset.Ascendancy{{ID: "Juggernaut", Name: "Juggernaut"}},
+				Character: "Metadata/Characters/Str/Str", BaseStrength: 32, BaseDexterity: 14, BaseIntelligence: 14, StartNode: 1,
+				Ascendancies: []dataset.Ascendancy{{ID: "Juggernaut"}},
 			}},
-			AlternateAscendancies: []dataset.Ascendancy{{ID: "Bloodline", Name: "Bloodline"}},
+			AlternateAscendancies: []dataset.Ascendancy{{ID: "Bloodline"}},
 			Nodes: []dataset.Node{
-				{ID: 1, Name: "MARAUDER", Kind: dataset.ClassStart, Neighbours: []uint32{2}},
+				{ID: 1, Kind: dataset.ClassStart, Neighbours: []uint32{2}},
 				n2,
-				{ID: 3, Name: "Mastery", Kind: dataset.Mastery, MasteryEffects: []dataset.MasteryEffect{{ID: 7, Stats: []dataset.StatValue{{Stat: 1, Value: 3}}}}},
+				{ID: 3, Kind: dataset.Mastery, MasteryEffects: []dataset.MasteryEffect{{ID: 7, Stats: []dataset.StatValue{{Stat: 1, Value: 3}}}}},
 			},
 			JewelSlots: []uint32{2},
 		}
 	}
-	might := dataset.Node{ID: 2, Name: "Might", Kind: dataset.Notable, Ascendancy: "Juggernaut", Neighbours: []uint32{1}}
+	might := dataset.Node{ID: 2, Kind: dataset.Notable, Ascendancy: "Juggernaut", Neighbours: []uint32{1}}
 	standard, ruthless := might, might
 	standard.Stats = []dataset.StatValue{{Stat: 1, Value: 5}, {Stat: 3, Value: 10}}
 	standard.Buffs = [][]dataset.StatValue{{{Stat: 4, Value: -5}}}
@@ -241,18 +242,27 @@ func TestDataset(t *testing.T) {
 	want := &dataset.Dataset{
 		Stats: []dataset.Stat{{ID: "level"}, {ID: "life_per_level"}, {ID: "base_speed"}, {ID: "base_strength"}, {ID: "aura_damage_+%"}},
 		Characters: []dataset.Character{{
-			ID: "Metadata/Characters/Str/Str", Name: "Marauder",
+			ID:           "Metadata/Characters/Str/Str",
 			BaseStrength: 32, BaseDexterity: 14, BaseIntelligence: 14, BaseMaxLife: 38, BaseMaxMana: 34,
 			Stats: []dataset.StatValue{{Stat: 0, Value: 1}, {Stat: 1, Value: 12}},
 		}},
 		Constants: []dataset.Constant{{ID: "life_per_strength", Value: 1, Per: 2}},
 		Trees:     []dataset.Tree{baseTree("standard", standard), baseTree("ruthless", ruthless)},
+		Texts: []dataset.Text{{
+			Language:       "en",
+			NodeNames:      []dataset.NodeName{{ID: 1, Name: "MARAUDER"}, {ID: 2, Name: "Might"}, {ID: 3, Name: "Mastery"}},
+			CharacterNames: []dataset.Name{{ID: "Metadata/Characters/Str/Str", Name: "Marauder"}},
+			AscendancyNames: []dataset.AscendancyName{
+				{Variant: "standard", ID: "Juggernaut", Name: "Juggernaut"}, {Variant: "standard", ID: "Bloodline", Name: "Bloodline"},
+				{Variant: "ruthless", ID: "Juggernaut", Name: "Juggernaut"}, {Variant: "ruthless", ID: "Bloodline", Name: "Bloodline"},
+			},
+		}},
 	}
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(dataset.Dataset{}, "Descriptions"), cmpopts.EquateEmpty()); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(dataset.Text{}, "Descriptions"), cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)
 	}
 	var scopes []string
-	for _, s := range got.Descriptions {
+	for _, s := range got.Texts[0].Descriptions {
 		scopes = append(scopes, s.Name)
 	}
 	wantScopes := []string{build.DescriptionsRoot, sdDir + "passive_skill_stat_descriptions.txt", sdDir + "stat_descriptions.txt"}
@@ -267,6 +277,7 @@ func TestDatasetErrors(t *testing.T) {
 		name   string
 		game   func(fstest.MapFS)
 		export func(*tree.Export)
+		input  func(*build.Input)
 		schema string
 	}{
 		{name: "unknown stat", game: func(g fstest.MapFS) {
@@ -342,6 +353,30 @@ func TestDatasetErrors(t *testing.T) {
 		{name: "class without start node", export: func(e *tree.Export) {
 			e.Classes = append(e.Classes, tree.Class{Name: "Ranger"})
 		}},
+		{name: "node renamed in another variant", input: func(in *build.Input) {
+			other := *in.Trees[0].Export
+			other.Nodes = maps.Clone(other.Nodes)
+			n := other.Nodes["2"]
+			n.Name = "Other"
+			other.Nodes["2"] = n
+			in.Trees[1].Export = &other
+		}},
+		{name: "class start node twice", export: func(e *tree.Export) {
+			n := e.Nodes["3"]
+			n.ClassStartIndex = e.Nodes["1"].ClassStartIndex
+			e.Nodes["3"] = n
+		}},
+		{name: "class without Characters row", game: func(g fstest.MapFS) {
+			g["Data/Characters.datc64"] = &fstest.MapFile{Data: datc64(
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(5), int32(32), int32(14), int32(14), int32(38), int32(34)},
+			)}
+		}},
+		{name: "repeated IntegerId", game: func(g fstest.MapFS) {
+			g["Data/Characters.datc64"] = &fstest.MapFile{Data: datc64(
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
+			)}
+		}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -354,6 +389,9 @@ func TestDatasetErrors(t *testing.T) {
 				testCase.export(e)
 			}
 			in := input(t, g, e)
+			if testCase.input != nil {
+				testCase.input(&in)
+			}
 			if testCase.schema != "" {
 				var err error
 				if in.Schema, err = dat.ParseSchema([]byte(testCase.schema)); err != nil {

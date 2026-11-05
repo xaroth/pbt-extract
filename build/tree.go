@@ -3,6 +3,7 @@ package build
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 
@@ -72,7 +73,9 @@ func index(t table, col string) (map[int]int, error) {
 	return out, nil
 }
 
-func (tt *treeTables) build(v Variant) (dataset.Tree, error) {
+// build joins one tree export with the game tables. classes maps the export's class index to
+// the character id.
+func (tt *treeTables) build(v Variant, classes map[int]string) (dataset.Tree, error) {
 	e := v.Export
 	t := dataset.Tree{
 		Variant:               v.Name,
@@ -82,12 +85,17 @@ func (tt *treeTables) build(v Variant) (dataset.Tree, error) {
 		JewelSlots:            slices.Clone(e.JewelSlots),
 	}
 	starts := map[int]uint32{}
-	for id, n := range e.Nodes {
+	// Sorted so errors and duplicate checks do not depend on map order.
+	for _, id := range slices.Sorted(maps.Keys(e.Nodes)) {
+		n := e.Nodes[id]
 		nd, err := tt.node(n, e, v.Hardmode)
 		if err != nil {
 			return t, fmt.Errorf("tree %s node %s: %w", v.Name, id, err)
 		}
 		if n.ClassStartIndex != nil {
+			if _, dup := starts[*n.ClassStartIndex]; dup {
+				return t, fmt.Errorf("tree %s: class %d has two start nodes", v.Name, *n.ClassStartIndex)
+			}
 			starts[*n.ClassStartIndex] = n.Skill
 		}
 		t.Nodes = append(t.Nodes, nd)
@@ -98,8 +106,12 @@ func (tt *treeTables) build(v Variant) (dataset.Tree, error) {
 		if !ok {
 			return t, fmt.Errorf("tree %s: class %s has no start node", v.Name, c.Name)
 		}
+		char, ok := classes[i]
+		if !ok {
+			return t, fmt.Errorf("tree %s: class %d (%s) has no Characters row with that IntegerId", v.Name, i, c.Name)
+		}
 		t.Classes = append(t.Classes, dataset.Class{
-			Name:             c.Name,
+			Character:        char,
 			BaseStrength:     c.BaseStrength,
 			BaseDexterity:    c.BaseDexterity,
 			BaseIntelligence: c.BaseIntelligence,
@@ -113,7 +125,7 @@ func (tt *treeTables) build(v Variant) (dataset.Tree, error) {
 func ascendancies(as []tree.Ascendancy) []dataset.Ascendancy {
 	var out []dataset.Ascendancy
 	for _, a := range as {
-		out = append(out, dataset.Ascendancy{ID: a.ID, Name: a.Name})
+		out = append(out, dataset.Ascendancy{ID: a.ID})
 	}
 	return out
 }
@@ -121,7 +133,6 @@ func ascendancies(as []tree.Ascendancy) []dataset.Ascendancy {
 func (tt *treeTables) node(n tree.Node, e *tree.Export, hardmode bool) (dataset.Node, error) {
 	nd := dataset.Node{
 		ID:                   n.Skill,
-		Name:                 n.Name,
 		Kind:                 kind(n),
 		Ascendancy:           n.AscendancyName,
 		MultipleChoice:       n.IsMultipleChoice,

@@ -4,6 +4,7 @@ package build
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/xaroth/pbt-engine/dataset"
@@ -44,20 +45,36 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		handles[id] = uint32(i)
 	}
 
-	chars, err := readTable(r, schema, "Characters", "Id", "Name",
+	chars, err := readTable(r, schema, "Characters", "Id", "Name", "IntegerId",
 		"BaseStrength", "BaseDexterity", "BaseIntelligence", "BaseMaxLife", "BaseMaxMana")
 	if err != nil {
 		return nil, err
 	}
+	// English text: the default Data/ tables and the tree export are English.
+	text := dataset.Text{Language: "en"}
+	classes := map[int]string{} // IntegerId, the tree's class index, to character id
 	for i := range chars.t.Len() {
 		c, err := character(r, chars, i, handles)
 		if err != nil {
 			return nil, fmt.Errorf("table Characters row %d: %w", i, err)
 		}
+		name, err := chars.str(i, "Name")
+		if err != nil {
+			return nil, err
+		}
+		classID, err := chars.integer(i, "IntegerId")
+		if err != nil {
+			return nil, err
+		}
+		if _, dup := classes[classID]; dup {
+			return nil, fmt.Errorf("table Characters: IntegerId %d repeated", classID)
+		}
+		classes[classID] = c.ID
 		d.Characters = append(d.Characters, c)
+		text.CharacterNames = append(text.CharacterNames, dataset.Name{ID: c.ID, Name: name})
 	}
 
-	if d.Descriptions, err = statdesc.Load(r, DescriptionsRoot); err != nil {
+	if text.Descriptions, err = statdesc.Load(r, DescriptionsRoot); err != nil {
 		return nil, err
 	}
 	d.Constants = in.Constants
@@ -66,24 +83,50 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
+		nodeNames := map[uint32]string{}
 		for _, v := range in.Trees {
-			t, err := tt.build(v)
+			t, err := tt.build(v, classes)
 			if err != nil {
 				return nil, err
 			}
 			d.Trees = append(d.Trees, t)
+			if err := addNames(&text, nodeNames, v); err != nil {
+				return nil, err
+			}
+		}
+		for _, id := range slices.Sorted(maps.Keys(nodeNames)) {
+			text.NodeNames = append(text.NodeNames, dataset.NodeName{ID: id, Name: nodeNames[id]})
 		}
 	}
+	d.Texts = []dataset.Text{text}
 	return d, nil
+}
+
+// addNames adds the node and ascendancy names of one tree export. A node keeps one name in
+// every variant; a different name is an error.
+func addNames(text *dataset.Text, nodes map[uint32]string, v Variant) error {
+	for _, id := range slices.Sorted(maps.Keys(v.Export.Nodes)) {
+		n := v.Export.Nodes[id]
+		if old, ok := nodes[n.Skill]; ok && old != n.Name {
+			return fmt.Errorf("tree %s node %d: name %q differs from %q in another variant", v.Name, n.Skill, n.Name, old)
+		}
+		nodes[n.Skill] = n.Name
+	}
+	for _, c := range v.Export.Classes {
+		for _, a := range c.Ascendancies {
+			text.AscendancyNames = append(text.AscendancyNames, dataset.AscendancyName{Variant: v.Name, ID: a.ID, Name: a.Name})
+		}
+	}
+	for _, a := range v.Export.AlternateAscendancies {
+		text.AscendancyNames = append(text.AscendancyNames, dataset.AscendancyName{Variant: v.Name, ID: a.ID, Name: a.Name})
+	}
+	return nil
 }
 
 func character(r ot.Reader, t table, row int, handles map[string]uint32) (dataset.Character, error) {
 	var c dataset.Character
 	var err error
 	if c.ID, err = t.str(row, "Id"); err != nil {
-		return c, err
-	}
-	if c.Name, err = t.str(row, "Name"); err != nil {
 		return c, err
 	}
 	for _, f := range []struct {
