@@ -10,11 +10,25 @@ import (
 
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ot"
+	"github.com/xaroth/pbt-extract/statdesc"
 )
 
-// Dataset reads the tables of one game version from r using schema. The caller fills in the
-// manifest.
-func Dataset(r ot.Reader, schema *dat.Schema) (*dataset.Dataset, error) {
+// DescriptionsRoot is the stat description file whose include chain datasets carry. It
+// includes passive_skill_stat_descriptions.txt, which includes stat_descriptions.txt.
+const DescriptionsRoot = "Metadata/StatDescriptions/passive_skill_aura_stat_descriptions.txt"
+
+// Input is what a dataset is built from.
+type Input struct {
+	// Game reads game files by path.
+	Game      ot.Reader
+	Schema    *dat.Schema
+	Trees     []Variant
+	Constants []dataset.Constant
+}
+
+// Dataset builds the tables of one game version. The caller fills in the manifest.
+func Dataset(in Input) (*dataset.Dataset, error) {
+	r, schema := in.Game, in.Schema
 	stats, err := readTable(r, schema, "Stats", "Id")
 	if err != nil {
 		return nil, err
@@ -41,6 +55,24 @@ func Dataset(r ot.Reader, schema *dat.Schema) (*dataset.Dataset, error) {
 			return nil, fmt.Errorf("table Characters row %d: %w", i, err)
 		}
 		d.Characters = append(d.Characters, c)
+	}
+
+	if d.Descriptions, err = statdesc.Load(r, DescriptionsRoot); err != nil {
+		return nil, err
+	}
+	d.Constants = in.Constants
+	if len(in.Trees) > 0 {
+		tt, err := readTreeTables(r, schema, d.Stats)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range in.Trees {
+			t, err := tt.build(v)
+			if err != nil {
+				return nil, err
+			}
+			d.Trees = append(d.Trees, t)
+		}
 	}
 	return d, nil
 }
@@ -117,7 +149,7 @@ func readTable(r ot.Reader, schema *dat.Schema, name string, cols ...string) (ta
 }
 
 func (t table) str(row int, col string) (string, error) {
-	v, err := t.t.Value(row, t.cols[col])
+	v, err := t.value(row, col)
 	if err != nil {
 		return "", err
 	}
@@ -128,8 +160,99 @@ func (t table) str(row int, col string) (string, error) {
 	return s, nil
 }
 
+func (t table) value(row int, col string) (any, error) {
+	i, ok := t.cols[col]
+	if !ok {
+		return nil, fmt.Errorf("column %s not read", col)
+	}
+	return t.t.Value(row, i)
+}
+
+// integer reads any integer column as an int.
+func (t table) integer(row int, col string) (int, error) {
+	v, err := t.value(row, col)
+	if err != nil {
+		return 0, err
+	}
+	switch n := v.(type) {
+	case int:
+		return n, nil
+	case int16:
+		return int(n), nil
+	case uint16:
+		return int(n), nil
+	case int32:
+		return int(n), nil
+	case uint32:
+		return int(n), nil
+	}
+	return 0, fmt.Errorf("column %s: got %T, want an integer", col, v)
+}
+
+func (t table) boolean(row int, col string) (bool, error) {
+	v, err := t.value(row, col)
+	if err != nil {
+		return false, err
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("column %s: got %T, want bool", col, v)
+	}
+	return b, nil
+}
+
+// ref reads a row or foreignrow column; a null reference is -1.
+func (t table) ref(row int, col string) (int, error) {
+	v, err := t.value(row, col)
+	if err != nil || v == nil {
+		return -1, err
+	}
+	n, ok := v.(int)
+	if !ok {
+		return -1, fmt.Errorf("column %s: got %T, want a row reference", col, v)
+	}
+	return n, nil
+}
+
+// ints reads a list of row references; null entries are an error.
+func (t table) ints(row int, col string) ([]int, error) {
+	v, err := t.value(row, col)
+	if err != nil {
+		return nil, err
+	}
+	list, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("column %s: got %T, want a list", col, v)
+	}
+	out := make([]int, len(list))
+	for i, x := range list {
+		if out[i], ok = x.(int); !ok {
+			return nil, fmt.Errorf("column %s item %d: got %T, want a row reference", col, i, x)
+		}
+	}
+	return out, nil
+}
+
+func (t table) i32s(row int, col string) ([]int32, error) {
+	v, err := t.value(row, col)
+	if err != nil {
+		return nil, err
+	}
+	list, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("column %s: got %T, want a list", col, v)
+	}
+	out := make([]int32, len(list))
+	for i, x := range list {
+		if out[i], ok = x.(int32); !ok {
+			return nil, fmt.Errorf("column %s item %d: got %T, want int32", col, i, x)
+		}
+	}
+	return out, nil
+}
+
 func (t table) i32(row int, col string) (int32, error) {
-	v, err := t.t.Value(row, t.cols[col])
+	v, err := t.value(row, col)
 	if err != nil {
 		return 0, err
 	}

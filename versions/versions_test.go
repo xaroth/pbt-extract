@@ -29,6 +29,9 @@ func TestAllVersionsAreComplete(t *testing.T) {
 			if !commit.MatchString(src.DatSchemaCommit) {
 				t.Errorf("got datSchemaCommit %q, want a full commit id", src.DatSchemaCommit)
 			}
+			if src.TreeExport == "" {
+				t.Errorf("got empty treeExport, want a skilltree-export tag")
+			}
 			if !manifest.MatchString(src.SteamManifest) {
 				t.Errorf("got steamManifest %q, want a manifest id", src.SteamManifest)
 			}
@@ -60,5 +63,26 @@ func TestLookup(t *testing.T) {
 	}
 	if _, err := versions.Lookup("poe1", "0.0.0"); err == nil {
 		t.Error("got nil error for an unknown version, want an error")
+	}
+}
+
+func TestConstants(t *testing.T) {
+	t.Parallel()
+	cs, err := versions.Constants("poe1")
+	if err != nil {
+		t.Fatalf("Constants: %v", err)
+	}
+	if len(cs) == 0 {
+		t.Fatalf("Constants: got none, want the poe1 constants")
+	}
+	if _, err := versions.Constants("nope"); err == nil {
+		t.Errorf("Constants(nope): got nil error, want an error")
+	}
+}
+
+func TestLookupRejectsFiles(t *testing.T) {
+	t.Parallel()
+	if _, err := versions.Lookup("poe1", "constants.json"); err == nil {
+		t.Errorf("Lookup(constants.json): got nil error, want an error")
 	}
 }

@@ -1,0 +1,67 @@
+{
+  "constants": [
+    {
+      "id": "life_per_strength",
+      "value": 1,
+      "per": 2,
+      "note": "Maximum life per point of strength, rounded down.",
+      "source": "Path of Building 3dbca44, Modules/CalcPerform.lua:520"
+    },
+    {
+      "id": "melee_physical_damage_+%_per_strength",
+      "value": 1,
+      "per": 5,
+      "note": "Increased melee physical damage per point of strength, rounded down.",
+      "source": "Path of Building 3dbca44, Modules/CalcPerform.lua:526"
+    },
+    {
+      "id": "accuracy_rating_per_dexterity",
+      "value": 2,
+      "per": 1,
+      "note": "Accuracy rating per point of dexterity.",
+      "source": "Path of Building 3dbca44, Modules/Data.lua:239 (AccuracyPerDexBase), used in Modules/CalcPerform.lua:531"
+    },
+    {
+      "id": "evasion_rating_+%_per_dexterity",
+      "value": 1,
+      "per": 5,
+      "note": "Increased evasion rating per point of dexterity, rounded down.",
+      "source": "Path of Building 3dbca44, Modules/CalcPerform.lua:533"
+    },
+    {
+      "id": "mana_per_intelligence",
+      "value": 1,
+      "per": 2,
+      "note": "Maximum mana per point of intelligence, rounded down.",
+      "source": "Path of Building 3dbca44, Modules/CalcPerform.lua:538"
+    },
+    {
+      "id": "energy_shield_+%_per_intelligence",
+      "value": 1,
+      "per": 10,
+      "note": "Increased maximum energy shield per point of intelligence, rounded down.",
+      "source": "Path of Building 3dbca44, Modules/CalcPerform.lua:541"
+    },
+    {
+      "id": "resistance_penalty_%",
+      "value": -60,
+      "per": 1,
+      "note": "Elemental and chaos resistance after the act 10 penalty, the default for endgame characters.",
+      "source": "Path of Building 3dbca44, Modules/CalcSetup.lua:617"
+    }
+  ],
+  "fromGameData": [
+    {
+      "id": "base_life",
+      "note": "Characters.BaseMaxLife (38 for every class) + life_per_level (12, Metadata/Characters/Character.ot) x level. Path of Building hard-codes 38 + 12 x level (Modules/CalcSetup.lua:609)."
+    },
+    {
+      "id": "base_mana",
+      "note": "Characters.BaseMaxMana (34) + mana_per_level (6, Character.ot) x level. Path of Building hard-codes 34 + 6 x level (Modules/CalcSetup.lua:610)."
+    },
+    {
+      "id": "base_accuracy",
+      "note": "accuracy_rating_per_level (2, Character.ot) x (level - 1). Path of Building Modules/CalcSetup.lua:614."
+    }
+  ]
+}

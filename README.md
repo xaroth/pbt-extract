@@ -12,17 +12,17 @@ Requires Go 1.27 and [ooz](https://github.com/zao/ooz) (GPL-3.0, run as a separa
 go run . -ooz /path/to/ooz get /path/to/game Data/Stats.datc64 > Stats.datc64
 go run . -ooz /path/to/ooz table /path/to/game 3.29.3.3 Stats > Stats.jsonl
 go run . -ooz /path/to/ooz stats /path/to/game Metadata/Characters/Str/Str
-go run . -ooz /path/to/ooz dataset /path/to/game 3.29.3.3 out/3.29.3.3
+go run . -ooz /path/to/ooz dataset /path/to/game 3.29.3.3 /path/to/tree-export out/3.29.3.3
 ```
 
-`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row. `stats` merges the `Stats` block of an object template (`.ot`) over its `extends` chain and writes it as one JSON object. `dataset` writes a pbt dataset (format in [pbt-engine](https://github.com/xaroth/pbt-engine), `dataset` package) for that game version into the output directory.
+`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row. `stats` merges the `Stats` block of an object template (`.ot`) over its `extends` chain and writes it as one JSON object. `dataset` writes a pbt dataset (format in [pbt-engine](https://github.com/xaroth/pbt-engine), `dataset` package) for that game version into the output directory. The tree export directory holds `data.json`, `ruthless.json` and `alternate.json` from [skilltree-export](https://github.com/grindinggear/skilltree-export) at the version's `treeExport` tag.
 
 ## Game versions
 
-`versions/<game>/<version>/` holds `schema.json` (the dat-schema build that matches the version) and `source.json` (Steam manifest and dat-schema commit). Add a version with:
+`versions/<game>/<version>/` holds `schema.json` (the dat-schema build that matches the version) and `source.json` (Steam manifest, dat-schema commit and skilltree-export tag). `versions/<game>/constants.json` holds edition constants the game data does not contain, each with a note and source. Add a version with:
 
 ```sh
-scripts/add-version.sh poe1 <version> <steam-manifest> <dat-schema-commit>
+scripts/add-version.sh poe1 <version> <steam-manifest> <dat-schema-commit> <tree-export-tag>
 ```
 
 It needs git, node and npm. Pick the dat-schema commit closest after the patch, and check that the tables you read decode without a row size error.

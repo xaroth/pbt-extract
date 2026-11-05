@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Adds versions/<game>/<version>/ with the dat-schema build for that version and its source.
-# usage: scripts/add-version.sh <game> <version> <steam-manifest> <dat-schema-commit>
+# usage: scripts/add-version.sh <game> <version> <steam-manifest> <dat-schema-commit> <tree-export-tag>
 # Needs git, node and npm.
 set -euo pipefail
 
-if [[ $# -ne 4 ]]; then
-	echo "usage: $0 <game> <version> <steam-manifest> <dat-schema-commit>" >&2
+if [[ $# -ne 5 ]]; then
+	echo "usage: $0 <game> <version> <steam-manifest> <dat-schema-commit> <tree-export-tag>" >&2
 	exit 2
 fi
-game=$1 version=$2 manifest=$3 commit=$4
+game=$1 version=$2 manifest=$3 commit=$4 tree=$5
 case $game in
 poe1) valid_for=1 ;;
 poe2) valid_for=2 ;;
@@ -40,5 +40,5 @@ const s = JSON.parse(fs.readFileSync(src, "utf8"));
 const keep = (e) => (e.validFor & Number(bit)) !== 0;
 fs.writeFileSync(dst, JSON.stringify({ ...s, tables: s.tables.filter(keep), enumerations: s.enumerations.filter(keep) }));
 ' schema.min.json "$out/schema.json" "$valid_for"
-printf '{\n  "steamManifest": "%s",\n  "datSchemaCommit": "%s"\n}\n' "$manifest" "$full" > "$out/source.json"
+printf '{\n  "steamManifest": "%s",\n  "datSchemaCommit": "%s",\n  "treeExport": "%s"\n}\n' "$manifest" "$full" "$tree" > "$out/source.json"
 echo "wrote $out"

@@ -3,13 +3,14 @@
 //	pbt-extract [-ooz path] get <dir> <path>
 //	pbt-extract [-ooz path] table <dir> <version> <table>
 //	pbt-extract [-ooz path] stats <dir> <object>
-//	pbt-extract [-ooz path] dataset <dir> <version> <out>
+//	pbt-extract [-ooz path] dataset <dir> <version> <tree-dir> <out>
 //
 // get writes the file at path (for example Data/Stats.datc64) to stdout. table decodes
 // Data/<table>.datc64 with the dat-schema build stored for version and writes one JSON object
 // per row. stats writes the Stats block of an object template such as
 // Metadata/Characters/Str/Str, merged over its extends chain, as one JSON object. dataset writes the pbt dataset for version into the
-// directory out. dir is the game install or archive that holds Bundles2.
+// directory out; tree-dir holds the tree export files (data.json, ruthless.json, alternate.json)
+// for the version's treeExport tag. dir is the game install or archive that holds Bundles2.
 package main
 
 import (
@@ -19,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/xaroth/pbt-engine/dataset"
@@ -28,10 +30,11 @@ import (
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ooz"
 	"github.com/xaroth/pbt-extract/ot"
+	"github.com/xaroth/pbt-extract/tree"
 	"github.com/xaroth/pbt-extract/versions"
 )
 
-const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>\n       pbt-extract [-ooz path] dataset <dir> <version> <out>"
+const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>\n       pbt-extract [-ooz path] dataset <dir> <version> <tree-dir> <out>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -81,12 +84,12 @@ func run(args []string) error {
 			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(s)
-	case cmd[0] == "dataset" && len(cmd) == 4:
+	case cmd[0] == "dataset" && len(cmd) == 5:
 		a, err := open()
 		if err != nil {
 			return err
 		}
-		return writeDataset(a, cmd[2], cmd[3])
+		return writeDataset(a, cmd[2], cmd[3], cmd[4])
 	}
 	return errors.New(usage)
 }
@@ -99,7 +102,7 @@ func loadSchema(v versions.Version) (*dat.Schema, error) {
 	return dat.ParseSchema(sb)
 }
 
-func writeDataset(a *bundle.Archive, version, out string) error {
+func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 	v, err := versions.Lookup("poe1", version)
 	if err != nil {
 		return fmt.Errorf("version %s: %w", version, err)
@@ -112,14 +115,46 @@ func writeDataset(a *bundle.Archive, version, out string) error {
 	if err != nil {
 		return err
 	}
-	d, err := build.Dataset(a, schema)
+	in := build.Input{Game: a, Schema: schema}
+	// Ruthless uses the hardmode columns of PassiveSkills.
+	treeFiles := []struct {
+		variant, file string
+		hardmode      bool
+	}{
+		{"standard", "data.json", false},
+		{"ruthless", "ruthless.json", true},
+		{"alternate", "alternate.json", false},
+	}
+	for _, tf := range treeFiles {
+		b, err := os.ReadFile(filepath.Join(treeDir, tf.file))
+		if err != nil {
+			return err
+		}
+		e, err := tree.Parse(b)
+		if err != nil {
+			return fmt.Errorf("%s: %w", tf.file, err)
+		}
+		in.Trees = append(in.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
+	}
+	consts, err := versions.Constants(v.Game)
+	if err != nil {
+		return err
+	}
+	for _, c := range consts {
+		in.Constants = append(in.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
+	}
+	d, err := build.Dataset(in)
 	if err != nil {
 		return err
 	}
 	d.Manifest = dataset.Manifest{
 		Game:    v.Game,
 		Version: v.Name,
-		Source:  map[string]string{"steamManifest": src.SteamManifest, "datSchemaCommit": src.DatSchemaCommit},
+		Source: map[string]string{
+			"steamManifest":   src.SteamManifest,
+			"datSchemaCommit": src.DatSchemaCommit,
+			"treeExport":      src.TreeExport,
+		},
 	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
