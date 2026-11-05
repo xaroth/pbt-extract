@@ -2,10 +2,12 @@
 //
 //	pbt-extract [-ooz path] get <dir> <path>
 //	pbt-extract [-ooz path] table <dir> <version> <table>
+//	pbt-extract [-ooz path] stats <dir> <object>
 //
 // get writes the file at path (for example Data/Stats.datc64) to stdout. table decodes
 // Data/<table>.datc64 with the dat-schema build stored for version and writes one JSON object
-// per row. dir is the game install or archive that holds Bundles2.
+// per row. stats writes the Stats block of an object template such as
+// Metadata/Characters/Str/Str, merged over its extends chain, as one JSON object. dir is the game install or archive that holds Bundles2.
 package main
 
 import (
@@ -20,10 +22,11 @@ import (
 	"github.com/xaroth/pbt-extract/bundle"
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ooz"
+	"github.com/xaroth/pbt-extract/ot"
 	"github.com/xaroth/pbt-extract/versions"
 )
 
-const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>"
+const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -63,6 +66,16 @@ func run(args []string) error {
 			return err
 		}
 		return writeTable(a, cmd[2], cmd[3])
+	case cmd[0] == "stats" && len(cmd) == 3:
+		a, err := open()
+		if err != nil {
+			return err
+		}
+		s, err := ot.Stats(a, cmd[2])
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(s)
 	}
 	return errors.New(usage)
 }

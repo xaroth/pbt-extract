@@ -2,7 +2,7 @@
 
 Reads Path of Exile game files and builds the datasets that [pbt-engine](https://github.com/xaroth/pbt-engine) loads.
 
-Status: early. It reads files and tables from a game install or `Bundles2` archive.
+Status: early. It reads files, tables and object template stats from a game install or `Bundles2` archive.
 
 ## Use
 
@@ -11,9 +11,10 @@ Requires Go 1.27 and [ooz](https://github.com/zao/ooz) (GPL-3.0, run as a separa
 ```sh
 go run . -ooz /path/to/ooz get /path/to/game Data/Stats.datc64 > Stats.datc64
 go run . -ooz /path/to/ooz table /path/to/game 3.29.3.3 Stats > Stats.jsonl
+go run . -ooz /path/to/ooz stats /path/to/game Metadata/Characters/Str/Str
 ```
 
-`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row.
+`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row. `stats` merges the `Stats` block of an object template (`.ot`) over its `extends` chain and writes it as one JSON object.
 
 ## Game versions
 
