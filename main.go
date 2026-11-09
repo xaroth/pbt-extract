@@ -1,16 +1,18 @@
-// Command pbt-extract reads game files from a Path of Exile install or bundle archive.
+// Command pbt-extract builds pbt datasets from Path of Exile game files.
 //
-//	pbt-extract [-ooz path] get <dir> <path>
-//	pbt-extract [-ooz path] table <dir> <version> <table>
-//	pbt-extract [-ooz path] stats <dir> <object>
-//	pbt-extract [-ooz path] dataset <dir> <version> <tree-dir> <out>
+//	pbt-extract [-ooz path] dataset <in> <out>
+//	pbt-extract [-ooz path] bundles <in>
+//	pbt-extract [-ooz path] get <in> <path>
+//	pbt-extract [-ooz path] table <in> <table>
+//	pbt-extract [-ooz path] stats <in> <object>
 //
-// get writes the file at path (for example Data/Stats.datc64) to stdout. table decodes
-// Data/<table>.datc64 with the dat-schema build stored for version and writes one JSON object
-// per row. stats writes the Stats block of an object template such as
-// Metadata/Characters/Str/Str, merged over its extends chain, as one JSON object. dataset writes the pbt dataset for version into the
-// directory out; tree-dir holds the tree export files (data.json, ruthless.json, alternate.json)
-// for the version's treeExport tag. dir is the game install or archive that holds Bundles2.
+// in is an input directory (see package input): source.json, schema.json, the tree export
+// under tree/ and the game's Bundles2. dataset writes the dataset into the directory out.
+// bundles lists the bundle files under in that a dataset build may read, one per line, from
+// Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
+// to stdout. table decodes Data/<table>.datc64 with schema.json and writes one JSON object per
+// row. stats writes the Stats block of an object template such as Metadata/Characters/Str/Str,
+// merged over its extends chain, as one JSON object.
 package main
 
 import (
@@ -20,21 +22,22 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
 	"github.com/xaroth/pbt-extract/build"
 	"github.com/xaroth/pbt-extract/bundle"
+	"github.com/xaroth/pbt-extract/constants"
 	"github.com/xaroth/pbt-extract/dat"
+	"github.com/xaroth/pbt-extract/input"
 	"github.com/xaroth/pbt-extract/ooz"
 	"github.com/xaroth/pbt-extract/ot"
 	"github.com/xaroth/pbt-extract/tree"
-	"github.com/xaroth/pbt-extract/versions"
 )
 
-const usage = "usage: pbt-extract [-ooz path] get <dir> <path>\n       pbt-extract [-ooz path] table <dir> <version> <table>\n       pbt-extract [-ooz path] stats <dir> <object>\n       pbt-extract [-ooz path] dataset <dir> <version> <tree-dir> <out>"
+const usage = "usage: pbt-extract [-ooz path] dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -68,12 +71,12 @@ func run(args []string) error {
 		}
 		_, err = os.Stdout.Write(b)
 		return err
-	case cmd[0] == "table" && len(cmd) == 4:
+	case cmd[0] == "table" && len(cmd) == 3:
 		a, err := open()
 		if err != nil {
 			return err
 		}
-		return writeTable(a, cmd[2], cmd[3])
+		return writeTable(a, cmd[1], cmd[2])
 	case cmd[0] == "stats" && len(cmd) == 3:
 		a, err := open()
 		if err != nil {
@@ -84,38 +87,40 @@ func run(args []string) error {
 			return err
 		}
 		return json.NewEncoder(os.Stdout).Encode(s)
-	case cmd[0] == "dataset" && len(cmd) == 5:
+	case cmd[0] == "dataset" && len(cmd) == 3:
 		a, err := open()
 		if err != nil {
 			return err
 		}
-		return writeDataset(a, cmd[2], cmd[3], cmd[4])
+		return writeDataset(a, cmd[1], cmd[2])
+	case cmd[0] == "bundles" && len(cmd) == 2:
+		a, err := open()
+		if err != nil {
+			return err
+		}
+		return writeBundles(a)
 	}
 	return errors.New(usage)
 }
 
-func loadSchema(v versions.Version) (*dat.Schema, error) {
-	sb, err := v.Schema()
+func loadSchema(in *input.Dir) (*dat.Schema, error) {
+	sb, err := in.Schema()
 	if err != nil {
 		return nil, err
 	}
 	return dat.ParseSchema(sb)
 }
 
-func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
-	v, err := versions.Lookup("poe1", version)
-	if err != nil {
-		return fmt.Errorf("version %s: %w", version, err)
-	}
-	schema, err := loadSchema(v)
+func writeDataset(a *bundle.Archive, inDir, out string) error {
+	in, err := input.Open(inDir)
 	if err != nil {
 		return err
 	}
-	src, err := v.Source()
+	schema, err := loadSchema(in)
 	if err != nil {
 		return err
 	}
-	in := build.Input{Game: a, Schema: schema}
+	bi := build.Input{Game: a, Schema: schema}
 	// Ruthless uses the hardmode columns of PassiveSkills.
 	treeFiles := []struct {
 		variant, file string
@@ -126,7 +131,7 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 		{"alternate", "alternate.json", false},
 	}
 	for _, tf := range treeFiles {
-		b, err := os.ReadFile(filepath.Join(treeDir, tf.file))
+		b, err := in.TreeFile(tf.file)
 		if err != nil {
 			return err
 		}
@@ -134,28 +139,20 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", tf.file, err)
 		}
-		in.Trees = append(in.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
+		bi.Trees = append(bi.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
-	consts, err := versions.Constants(v.Game)
+	consts, err := constants.Load(in.Game)
 	if err != nil {
 		return err
 	}
 	for _, c := range consts {
-		in.Constants = append(in.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
+		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}
-	d, err := build.Dataset(in)
+	d, err := build.Dataset(bi)
 	if err != nil {
 		return err
 	}
-	d.Manifest = dataset.Manifest{
-		Game:    v.Game,
-		Version: v.Name,
-		Source: map[string]string{
-			"steamManifest":   src.SteamManifest,
-			"datSchemaCommit": src.DatSchemaCommit,
-			"treeExport":      src.TreeExport,
-		},
-	}
+	d.Manifest = dataset.Manifest{Game: in.Game, Version: in.Version, Source: in.Source.Source}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -163,18 +160,45 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 	return err
 }
 
-func writeTable(a *bundle.Archive, version, name string) error {
-	v, err := versions.Lookup("poe1", version)
+// writeBundles lists the bundle files holding the game files a build may read.
+func writeBundles(a *bundle.Archive) error {
+	paths, err := a.Paths()
 	if err != nil {
-		return fmt.Errorf("version %s: %w", version, err)
+		return err
 	}
-	schema, err := loadSchema(v)
+	var files []string
+	for _, p := range paths {
+		if !build.Reads(p) {
+			continue
+		}
+		f, ok := a.BundleFile(p)
+		if !ok {
+			return fmt.Errorf("index names %s but has no entry for it", p)
+		}
+		files = append(files, f)
+	}
+	slices.Sort(files)
+	w := bufio.NewWriter(os.Stdout)
+	for _, f := range slices.Compact(files) {
+		if _, err := fmt.Fprintln(w, f); err != nil {
+			return err
+		}
+	}
+	return w.Flush()
+}
+
+func writeTable(a *bundle.Archive, inDir, name string) error {
+	in, err := input.Open(inDir)
+	if err != nil {
+		return err
+	}
+	schema, err := loadSchema(in)
 	if err != nil {
 		return err
 	}
 	def, ok := schema.Table(name)
 	if !ok {
-		return fmt.Errorf("table %s not in the %s schema", name, version)
+		return fmt.Errorf("table %s not in the %s schema", name, in.Version)
 	}
 	b, err := a.ReadFile("Data/" + name + ".datc64")
 	if err != nil {

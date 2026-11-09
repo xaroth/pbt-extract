@@ -9,23 +9,25 @@ Status: early. It reads files, tables and object template stats from a game inst
 Requires Go 1.27 and [ooz](https://github.com/zao/ooz) (GPL-3.0, run as a separate program) on `PATH` or given with `-ooz`.
 
 ```sh
-go run . -ooz /path/to/ooz get /path/to/game Data/Stats.datc64 > Stats.datc64
-go run . -ooz /path/to/ooz table /path/to/game 3.29.3.3 Stats > Stats.jsonl
-go run . -ooz /path/to/ooz stats /path/to/game Metadata/Characters/Str/Str
-go run . -ooz /path/to/ooz dataset /path/to/game 3.29.3.3 /path/to/tree-export out/3.29.3.3
+go run . dataset <in> <out>         # build the dataset into out
+go run . bundles <in>               # bundle files a build may read, from Bundles2/_.index.bin alone
+go run . get <in> Data/Stats.datc64 > Stats.datc64
+go run . table <in> Stats > Stats.jsonl
+go run . stats <in> Metadata/Characters/Str/Str
 ```
 
-`table` decodes a table with the dat-schema build stored for that game version and writes one JSON object per row. `stats` merges the `Stats` block of an object template (`.ot`) over its `extends` chain and writes it as one JSON object. `dataset` writes a pbt dataset (format in [pbt-engine](https://github.com/xaroth/pbt-engine), `dataset` package) for that game version into the output directory. The tree export directory holds `data.json`, `ruthless.json` and `alternate.json` from [skilltree-export](https://github.com/grindinggear/skilltree-export) at the version's `treeExport` tag.
+`in` is an input directory; pbt-extract does not fetch anything:
 
-## Game versions
+| Entry | Content |
+|---|---|
+| `source.json` | `{"game": "poe1", "version": "3.29.3.3", "source": {...}}`; `source` is copied into the dataset manifest as given |
+| `schema.json` | The [dat-schema](https://github.com/poe-tool-dev/dat-schema) build for the version |
+| `tree/` | `data.json`, `ruthless.json` and `alternate.json` from [skilltree-export](https://github.com/grindinggear/skilltree-export) |
+| `Bundles2/` | `_.index.bin` and the bundles `bundles` lists |
 
-`versions/<game>/<version>/` holds `schema.json` (the dat-schema build that matches the version) and `source.json` (Steam manifest, dat-schema commit and skilltree-export tag). `versions/<game>/constants.json` holds edition constants the game data does not contain, each with a note and source. Add a version with:
+Which game version uses which depot manifest, schema and tree export is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
-```sh
-scripts/add-version.sh poe1 <version> <steam-manifest> <dat-schema-commit> <tree-export-tag>
-```
-
-It needs git, node and npm. Pick the dat-schema commit closest after the patch, and check that the tables you read decode without a row size error.
+`constants/<game>.json` holds edition constants the game data does not contain, each with a note and source.
 
 ## Develop
 

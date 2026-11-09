@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -183,4 +184,80 @@ func TestOpenErrors(t *testing.T) {
 			t.Errorf("got %v, want fs.ErrNotExist", err)
 		}
 	})
+}
+
+// appendPaths appends a path section of one directory to an index: base "Data/", then
+// "Data/Stats.datc64" from it and "Metadata/X.ot" on its own.
+func appendPaths(tb testing.TB, index []byte) []byte {
+	tb.Helper()
+	le := binary.LittleEndian
+	var data []byte
+	str := func(code uint32, s string) {
+		data = le.AppendUint32(data, code)
+		data = append(append(data, s...), 0)
+	}
+	data = le.AppendUint32(data, 0)
+	str(1, "Data/")
+	data = le.AppendUint32(data, 0)
+	str(1, "Stats.datc64")
+	str(2, "Metadata/X.ot")
+	b := le.AppendUint32(index, 1)
+	b = le.AppendUint64(b, 0)
+	b = le.AppendUint32(b, 0)
+	b = le.AppendUint32(b, uint32(len(data)))
+	b = le.AppendUint32(b, uint32(len(data)))
+	return append(b, makeBundle(tb, data, 16)...)
+}
+
+func TestPaths(t *testing.T) {
+	t.Parallel()
+	index := makeIndex(t, []string{"Folders/a"}, []entry{{"Data/Stats.datc64", 0, 0, 1}})
+	fsys := fstest.MapFS{"Bundles2/_.index.bin": {Data: makeBundle(t, appendPaths(t, index), 64)}}
+	a, err := bundle.Open(fsys, &stored{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.Paths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"Data/Stats.datc64", "Metadata/X.ot"}; !slices.Equal(got, want) {
+		t.Errorf("Paths: got %q, want %q", got, want)
+	}
+	if f, ok := a.BundleFile("data/stats.datc64"); !ok || f != "Bundles2/Folders/a.bundle.bin" {
+		t.Errorf("BundleFile: got %q, %v", f, ok)
+	}
+	if _, ok := a.BundleFile("Metadata/X.ot"); ok {
+		t.Error("BundleFile of a path without a file entry: got ok")
+	}
+}
+
+func TestPathsErrors(t *testing.T) {
+	t.Parallel()
+	index := makeIndex(t, []string{"a"}, []entry{{"x", 0, 0, 1}})
+	full := appendPaths(t, index)
+	testCases := []struct {
+		name  string
+		index []byte
+	}{
+		{"no path section", index},
+		{"truncated directories", full[:len(index)+10]},
+		{"directory past data", func() []byte {
+			b := bytes.Clone(full)
+			binary.LittleEndian.PutUint32(b[len(index)+4+12:], 999)
+			return b
+		}()},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			a, err := bundle.Open(fstest.MapFS{"Bundles2/_.index.bin": {Data: makeBundle(t, testCase.index, 64)}}, &stored{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := a.Paths(); err == nil {
+				t.Error("got nil error, want an error")
+			}
+		})
+	}
 }
