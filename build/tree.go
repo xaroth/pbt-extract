@@ -24,9 +24,9 @@ type Variant struct {
 
 // treeTables holds the tables trees are joined with.
 type treeTables struct {
-	passives, mastery, buffTemplates, buffDefs table
-	byGraphID, byMasteryHash                   map[int]int
-	stats                                      []dataset.Stat
+	passives, mastery, masteryGroups, buffTemplates, buffDefs table
+	byGraphID, byMasteryHash                                  map[int]int
+	stats                                                     []dataset.Stat
 }
 
 func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat) (*treeTables, error) {
@@ -35,7 +35,10 @@ func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat) (*tre
 	if t.passives, err = readTable(r, schema, "PassiveSkills", "PassiveSkillGraphId", "Stats",
 		"Stat1Value", "Stat2Value", "Stat3Value", "Stat4Value", "Stat5Value", "PassiveSkillBuffs", "SkillPointsGranted",
 		"HasHardmodeAlternate", "StatsHardmode", "Stat1ValueHardmode", "Stat2ValueHardmode", "Stat3ValueHardmode",
-		"Stat4ValueHardmode", "Stat5ValueHardmode", "BuffsHardmode", "SkillPointsGrantedHardmode"); err != nil {
+		"Stat4ValueHardmode", "Stat5ValueHardmode", "BuffsHardmode", "SkillPointsGrantedHardmode", "MasteryGroup"); err != nil {
+		return nil, err
+	}
+	if t.masteryGroups, err = readTable(r, schema, "PassiveSkillMasteryGroups", "MasteryCountStat"); err != nil {
 		return nil, err
 	}
 	if t.mastery, err = readTable(r, schema, "PassiveSkillMasteryEffects", "HASH16", "Stats",
@@ -158,6 +161,9 @@ func (tt *treeTables) node(n tree.Node, e *tree.Export, hardmode bool) (dataset.
 	if nd.Stats, err = tt.statValues(p, row, statsCol, "Stat%d"+valueSuffix); err != nil {
 		return nd, err
 	}
+	if nd.Stats, err = tt.masteryCount(row, nd.Stats); err != nil {
+		return nd, err
+	}
 	slices.SortFunc(nd.Stats, func(a, b dataset.StatValue) int { return cmp.Compare(a.Stat, b.Stat) })
 	for i := 1; i < len(nd.Stats); i++ {
 		if nd.Stats[i-1].Stat == nd.Stats[i].Stat {
@@ -210,6 +216,26 @@ func (tt *treeTables) node(n tree.Node, e *tree.Export, hardmode bool) (dataset.
 	}
 	slices.Sort(nd.Neighbours)
 	return nd, nil
+}
+
+// masteryCount adds the count stat of the node's mastery group, at 1, to stats: the game
+// counts allocated masteries of a group in that stat (PassiveSkillMasteryGroups
+// MasteryCountStat, such as number_of_life_masteries), which effects like "10% more Maximum
+// Life if you have at least 6 Life Masteries allocated" read. Nodes without a group are left
+// as they are.
+func (tt *treeTables) masteryCount(row int, stats []dataset.StatValue) ([]dataset.StatValue, error) {
+	group, err := tt.passives.ref(row, "MasteryGroup")
+	if err != nil || group < 0 {
+		return stats, err
+	}
+	stat, err := tt.masteryGroups.ref(group, "MasteryCountStat")
+	if err != nil || stat < 0 {
+		return stats, err
+	}
+	if stat >= len(tt.stats) {
+		return stats, fmt.Errorf("mastery count stat row %d out of range", stat)
+	}
+	return append(stats, dataset.StatValue{Stat: uint32(stat), Value: 1}), nil
 }
 
 func kind(n tree.Node) dataset.NodeKind {
