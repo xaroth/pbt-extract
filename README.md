@@ -9,18 +9,17 @@ Status: early. It reads files, tables and object template stats from a game inst
 Requires Go 1.27 and [ooz](https://github.com/zao/ooz) (GPL-3.0, run as a separate program) on `PATH` or given with `-ooz`.
 
 ```sh
-go run . dataset <in> <out>         # build the dataset into out
+go run . -version 3.29.3.3 dataset <in> <out>   # build the dataset into out
 go run . bundles <in>               # bundle files a build may read, from Bundles2/_.index.bin alone
 go run . get <in> Data/Stats.datc64 > Stats.datc64
 go run . table <in> Stats > Stats.jsonl
 go run . stats <in> Metadata/Characters/Str/Str
 ```
 
-`in` is an input directory; pbt-extract does not fetch anything:
+`in` is an input directory; pbt-extract does not fetch anything. `-version` names the game version the files are from and `-game` the edition (default `poe1`).
 
 | Entry | Content |
 |---|---|
-| `source.json` | `{"version": "3.29.3.3", ...}`: string fields, copied into the dataset manifest's `source` as given; `-game` names the edition (default `poe1`) |
 | `schema.json` | The [dat-schema](https://github.com/poe-tool-dev/dat-schema) build for the version |
 | `tree/` | `data.json`, `ruthless.json` and `alternate.json` from [skilltree-export](https://github.com/grindinggear/skilltree-export) |
 | `Bundles2/` | `_.index.bin` and the bundles `bundles` lists |

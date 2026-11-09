@@ -1,14 +1,14 @@
 // Command pbt-extract builds pbt datasets from Path of Exile game files.
 //
-//	pbt-extract [-ooz path] [-game poe1] dataset <in> <out>
+//	pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>
 //	pbt-extract [-ooz path] bundles <in>
 //	pbt-extract [-ooz path] get <in> <path>
 //	pbt-extract [-ooz path] table <in> <table>
 //	pbt-extract [-ooz path] stats <in> <object>
 //
-// in is an input directory (see package input): source.json, schema.json, the tree export
-// under tree/ and the game's Bundles2. dataset writes the dataset into the directory out, with
-// source.json as the manifest's source.
+// in is an input directory (see package input): schema.json, the tree export under tree/ and
+// the game's Bundles2. dataset writes the dataset of game version -version into the directory
+// out.
 // bundles lists the bundle files under in that a dataset build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
 // to stdout. table decodes Data/<table>.datc64 with schema.json and writes one JSON object per
@@ -38,7 +38,7 @@ import (
 	"github.com/xaroth/pbt-extract/tree"
 )
 
-const usage = "usage: pbt-extract [-ooz path] dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
+const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -51,6 +51,7 @@ func run(args []string) error {
 	fl := flag.NewFlagSet("pbt-extract", flag.ContinueOnError)
 	oozPath := fl.String("ooz", "", "path to the ooz binary (default: ooz from PATH)")
 	game := fl.String("game", "poe1", "game edition of the input")
+	version := fl.String("version", "", "game version of the input, such as 3.29.3.3 (dataset)")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -78,7 +79,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return writeTable(a, cmd[1], cmd[2])
+		return writeTable(a, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "stats" && len(cmd) == 3:
 		a, err := open()
 		if err != nil {
@@ -94,7 +95,10 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return writeDataset(a, *game, cmd[1], cmd[2])
+		if *version == "" {
+			return errors.New("dataset needs -version")
+		}
+		return writeDataset(a, *game, *version, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "bundles" && len(cmd) == 2:
 		a, err := open()
 		if err != nil {
@@ -105,7 +109,7 @@ func run(args []string) error {
 	return errors.New(usage)
 }
 
-func loadSchema(in *input.Dir) (*dat.Schema, error) {
+func loadSchema(in input.Dir) (*dat.Schema, error) {
 	sb, err := in.Schema()
 	if err != nil {
 		return nil, err
@@ -113,11 +117,7 @@ func loadSchema(in *input.Dir) (*dat.Schema, error) {
 	return dat.ParseSchema(sb)
 }
 
-func writeDataset(a *bundle.Archive, game, inDir, out string) error {
-	in, err := input.Open(inDir)
-	if err != nil {
-		return err
-	}
+func writeDataset(a *bundle.Archive, game, version string, in input.Dir, out string) error {
 	schema, err := loadSchema(in)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func writeDataset(a *bundle.Archive, game, inDir, out string) error {
 	if err != nil {
 		return err
 	}
-	d.Manifest = dataset.Manifest{Game: game, Version: in.Version(), Source: in.Source}
+	d.Manifest = dataset.Manifest{Game: game, Version: version}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -189,18 +189,14 @@ func writeBundles(a *bundle.Archive) error {
 	return w.Flush()
 }
 
-func writeTable(a *bundle.Archive, inDir, name string) error {
-	in, err := input.Open(inDir)
-	if err != nil {
-		return err
-	}
+func writeTable(a *bundle.Archive, in input.Dir, name string) error {
 	schema, err := loadSchema(in)
 	if err != nil {
 		return err
 	}
 	def, ok := schema.Table(name)
 	if !ok {
-		return fmt.Errorf("table %s not in the %s schema", name, in.Version())
+		return fmt.Errorf("table %s not in schema.json", name)
 	}
 	b, err := a.ReadFile("Data/" + name + ".datc64")
 	if err != nil {
