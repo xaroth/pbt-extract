@@ -2,6 +2,7 @@ package ot
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -37,8 +38,8 @@ func Stats(r Reader, path string) (map[string]int, error) {
 	}
 
 	stats := map[string]int{}
-	for i := len(chain) - 1; i >= 0; i-- {
-		b, ok := chain[i].Block("Stats")
+	for _, c := range slices.Backward(chain) {
+		b, ok := c.Block("Stats")
 		if !ok {
 			continue
 		}
