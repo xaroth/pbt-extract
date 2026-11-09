@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 //go:embed poe1
@@ -17,8 +20,14 @@ var files embed.FS
 type Source struct {
 	SteamManifest   string `json:"steamManifest"`
 	DatSchemaCommit string `json:"datSchemaCommit"`
+	// DatSchemaNote says why DatSchemaCommit is not the commit closest after the patch.
+	DatSchemaNote string `json:"datSchemaNote,omitempty"`
 	// TreeExport is the tag of https://github.com/grindinggear/skilltree-export to use.
 	TreeExport string `json:"treeExport"`
+	// TreeExportCommit is the commit TreeExport pointed at when the version was added.
+	TreeExportCommit string `json:"treeExportCommit"`
+	// TreeExportFiles maps each export file used (data.json, ...) to its SHA-256.
+	TreeExportFiles map[string]string `json:"treeExportFiles"`
 }
 
 // Version is one game version known to the extractor.
@@ -99,4 +108,37 @@ func Constants(game string) ([]Constant, error) {
 		}
 	}
 	return f.Constants, nil
+}
+
+// CheckTreeExport compares a game version with the skilltree-export tag it uses. A tag from
+// another league (major.minor) is an error. A tag older than the version returns a warning:
+// GGG does not tag an export for every patch, so the graph may miss a hotfix change.
+func CheckTreeExport(version, tag string) (warning string, err error) {
+	v, err := parseVersion(version)
+	if err != nil {
+		return "", err
+	}
+	t, err := parseVersion(tag)
+	if err != nil {
+		return "", fmt.Errorf("tree export tag: %w", err)
+	}
+	if len(v) < 2 || len(t) < 2 || v[0] != t[0] || v[1] != t[1] {
+		return "", fmt.Errorf("tree export %s is not from the league of game version %s", tag, version)
+	}
+	if slices.Compare(t, v) < 0 {
+		return fmt.Sprintf("tree export %s is older than game version %s; graph changes after %s are missing", tag, version, tag), nil
+	}
+	return "", nil
+}
+
+func parseVersion(s string) ([]int, error) {
+	var out []int
+	for p := range strings.SplitSeq(s, ".") {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("version %q: want numbers separated by dots", s)
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }

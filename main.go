@@ -15,6 +15,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -115,6 +117,13 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 	if err != nil {
 		return err
 	}
+	warn, err := versions.CheckTreeExport(v.Name, src.TreeExport)
+	if err != nil {
+		return err
+	}
+	if warn != "" {
+		fmt.Fprintln(os.Stderr, "pbt-extract: warning:", warn)
+	}
 	in := build.Input{Game: a, Schema: schema}
 	// Ruthless uses the hardmode columns of PassiveSkills.
 	treeFiles := []struct {
@@ -129,6 +138,9 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 		b, err := os.ReadFile(filepath.Join(treeDir, tf.file))
 		if err != nil {
 			return err
+		}
+		if sum := sha256.Sum256(b); hex.EncodeToString(sum[:]) != src.TreeExportFiles[tf.file] {
+			return fmt.Errorf("%s: SHA-256 differs from skilltree-export %s (%s) as pinned for %s", tf.file, src.TreeExport, src.TreeExportCommit, v.Name)
 		}
 		e, err := tree.Parse(b)
 		if err != nil {
@@ -151,10 +163,14 @@ func writeDataset(a *bundle.Archive, version, treeDir, out string) error {
 		Game:    v.Game,
 		Version: v.Name,
 		Source: map[string]string{
-			"steamManifest":   src.SteamManifest,
-			"datSchemaCommit": src.DatSchemaCommit,
-			"treeExport":      src.TreeExport,
+			"steamManifest":    src.SteamManifest,
+			"datSchemaCommit":  src.DatSchemaCommit,
+			"treeExport":       src.TreeExport,
+			"treeExportCommit": src.TreeExportCommit,
 		},
+	}
+	for f, sum := range src.TreeExportFiles {
+		d.Manifest.Source["treeExport/"+f] = sum
 	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
