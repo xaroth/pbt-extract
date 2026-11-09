@@ -14,6 +14,8 @@ type Archive struct {
 	d       Decompressor
 	bundles []string
 	files   map[uint64]fileEntry
+	// paths is the index's path section, decoded by Paths.
+	paths []byte
 }
 
 type fileEntry struct {
@@ -81,6 +83,7 @@ func (a *Archive) parseIndex(b []byte) error {
 		a.files[le.Uint64(b)] = e
 		b = b[20:]
 	}
+	a.paths = b
 	return nil
 }
 
@@ -92,7 +95,7 @@ func (a *Archive) ReadFile(name string) ([]byte, error) {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrNotExist}
 	}
 	bundleName := a.bundles[e.bundle]
-	raw, err := fs.ReadFile(a.fsys, path.Join("Bundles2", bundleName+".bundle.bin"))
+	raw, err := fs.ReadFile(a.fsys, bundlePath(bundleName))
 	if err != nil {
 		return nil, err
 	}
@@ -102,3 +105,15 @@ func (a *Archive) ReadFile(name string) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// BundleFile returns the bundle file that holds the file at name, relative to the root given to
+// Open (for example "Bundles2/Folders/a.bundle.bin"), and false for unknown paths.
+func (a *Archive) BundleFile(name string) (string, bool) {
+	e, ok := a.files[PathHash(name)]
+	if !ok {
+		return "", false
+	}
+	return bundlePath(a.bundles[e.bundle]), true
+}
+
+func bundlePath(name string) string { return path.Join("Bundles2", name+".bundle.bin") }
