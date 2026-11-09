@@ -20,12 +20,12 @@ go run . stats <in> Metadata/Characters/Str/Str
 
 | Entry | Content |
 |---|---|
-| `source.json` | `{"game": "poe1", "version": "3.29.3.3", "source": {...}}`; `source` is copied into the dataset manifest as given |
+| `source.json` | `{"version": "3.29.3.3", ...}`: string fields, copied into the dataset manifest's `source` as given; `-game` names the edition (default `poe1`) |
 | `schema.json` | The [dat-schema](https://github.com/poe-tool-dev/dat-schema) build for the version |
 | `tree/` | `data.json`, `ruthless.json` and `alternate.json` from [skilltree-export](https://github.com/grindinggear/skilltree-export) |
 | `Bundles2/` | `_.index.bin` and the bundles `bundles` lists |
 
-Which game version uses which depot manifest, schema and tree export is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
+Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
 `constants/<game>.json` holds edition constants the game data does not contain, each with a note and source.
 

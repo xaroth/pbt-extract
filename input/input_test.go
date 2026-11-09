@@ -22,15 +22,15 @@ func write(t *testing.T, dir, name, content string) {
 func TestOpen(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	write(t, dir, "source.json", `{"game": "poe1", "version": "3.29.3.3", "source": {"steamManifest": "1"}}`)
+	write(t, dir, "source.json", `{"version": "3.29.3.3", "steamManifest": "1"}`)
 	write(t, dir, "schema.json", `{}`)
 	write(t, dir, "tree/data.json", `[]`)
 	d, err := input.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Game != "poe1" || d.Version != "3.29.3.3" || d.Source.Source["steamManifest"] != "1" {
-		t.Errorf("got %+v", d.Source)
+	if d.Version() != "3.29.3.3" || d.Source["steamManifest"] != "1" {
+		t.Errorf("got %v", d.Source)
 	}
 	if b, err := d.Schema(); err != nil || string(b) != "{}" {
 		t.Errorf("Schema: %q, %v", b, err)
@@ -43,9 +43,9 @@ func TestOpen(t *testing.T) {
 func TestOpenErrors(t *testing.T) {
 	t.Parallel()
 	for name, content := range map[string]string{
-		"no version": `{"game": "poe1"}`,
-		"no game":    `{"version": "3.29.3.3"}`,
-		"not json":   `{`,
+		"no version":       `{"steamManifest": "1"}`,
+		"non-string field": `{"version": "3.29.3.3", "n": 1}`,
+		"not json":         `{`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

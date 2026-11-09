@@ -1,13 +1,14 @@
 // Command pbt-extract builds pbt datasets from Path of Exile game files.
 //
-//	pbt-extract [-ooz path] dataset <in> <out>
+//	pbt-extract [-ooz path] [-game poe1] dataset <in> <out>
 //	pbt-extract [-ooz path] bundles <in>
 //	pbt-extract [-ooz path] get <in> <path>
 //	pbt-extract [-ooz path] table <in> <table>
 //	pbt-extract [-ooz path] stats <in> <object>
 //
 // in is an input directory (see package input): source.json, schema.json, the tree export
-// under tree/ and the game's Bundles2. dataset writes the dataset into the directory out.
+// under tree/ and the game's Bundles2. dataset writes the dataset into the directory out, with
+// source.json as the manifest's source.
 // bundles lists the bundle files under in that a dataset build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
 // to stdout. table decodes Data/<table>.datc64 with schema.json and writes one JSON object per
@@ -49,6 +50,7 @@ func main() {
 func run(args []string) error {
 	fl := flag.NewFlagSet("pbt-extract", flag.ContinueOnError)
 	oozPath := fl.String("ooz", "", "path to the ooz binary (default: ooz from PATH)")
+	game := fl.String("game", "poe1", "game edition of the input")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -92,7 +94,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return writeDataset(a, cmd[1], cmd[2])
+		return writeDataset(a, *game, cmd[1], cmd[2])
 	case cmd[0] == "bundles" && len(cmd) == 2:
 		a, err := open()
 		if err != nil {
@@ -111,7 +113,7 @@ func loadSchema(in *input.Dir) (*dat.Schema, error) {
 	return dat.ParseSchema(sb)
 }
 
-func writeDataset(a *bundle.Archive, inDir, out string) error {
+func writeDataset(a *bundle.Archive, game, inDir, out string) error {
 	in, err := input.Open(inDir)
 	if err != nil {
 		return err
@@ -141,7 +143,7 @@ func writeDataset(a *bundle.Archive, inDir, out string) error {
 		}
 		bi.Trees = append(bi.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
-	consts, err := constants.Load(in.Game)
+	consts, err := constants.Load(game)
 	if err != nil {
 		return err
 	}
@@ -152,7 +154,7 @@ func writeDataset(a *bundle.Archive, inDir, out string) error {
 	if err != nil {
 		return err
 	}
-	d.Manifest = dataset.Manifest{Game: in.Game, Version: in.Version, Source: in.Source.Source}
+	d.Manifest = dataset.Manifest{Game: game, Version: in.Version(), Source: in.Source}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -198,7 +200,7 @@ func writeTable(a *bundle.Archive, inDir, name string) error {
 	}
 	def, ok := schema.Table(name)
 	if !ok {
-		return fmt.Errorf("table %s not in the %s schema", name, in.Version)
+		return fmt.Errorf("table %s not in the %s schema", name, in.Version())
 	}
 	b, err := a.ReadFile("Data/" + name + ".datc64")
 	if err != nil {

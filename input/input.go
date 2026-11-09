@@ -1,11 +1,11 @@
 // Package input reads the input directory of a dataset build:
 //
-//	source.json   {"game": "poe1", "version": "3.29.3.3", "source": {...}}
+//	source.json   {"version": "3.29.3.3", ...}: the game version and where the inputs came from
 //	schema.json   the dat-schema build for the version
 //	tree/         data.json, ruthless.json and alternate.json of the skilltree export
 //	Bundles2/     the game's bundles: _.index.bin and the bundles the build reads
 //
-// How the files got there is the caller's business; source is copied into the dataset's
+// How the files got there is the caller's business; source.json goes into the dataset's
 // manifest as given.
 package input
 
@@ -24,22 +24,17 @@ const (
 	TreeDir    = "tree"
 )
 
-var errSource = errors.New("source.json needs game and version")
-
-// Source is source.json.
-type Source struct {
-	Game    string `json:"game"`
-	Version string `json:"version"`
-	// Source says where the inputs came from, such as the Steam depot manifest; it goes into
-	// the manifest unread.
-	Source map[string]string `json:"source"`
-}
+var errVersion = errors.New("source.json needs a version")
 
 // Dir is an input directory.
 type Dir struct {
 	Path string
-	Source
+	// Source is source.json: string fields, of which version is the game version.
+	Source map[string]string
 }
+
+// Version returns the game version from source.json.
+func (d *Dir) Version() string { return d.Source["version"] }
 
 // Open reads dir's source.json.
 func Open(dir string) (*Dir, error) {
@@ -51,8 +46,8 @@ func Open(dir string) (*Dir, error) {
 	if err := json.Unmarshal(b, &d.Source); err != nil {
 		return nil, fmt.Errorf("%s: %w", SourceFile, err)
 	}
-	if d.Game == "" || d.Version == "" {
-		return nil, errSource
+	if d.Version() == "" {
+		return nil, errVersion
 	}
 	return d, nil
 }
