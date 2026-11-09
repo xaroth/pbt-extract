@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
@@ -78,6 +80,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		return nil, err
 	}
 	d.Constants = in.Constants
+	if d.Quests, err = quests(r, schema, len(d.Stats)); err != nil {
+		return nil, err
+	}
 	if len(in.Trees) > 0 {
 		tt, err := readTreeTables(r, schema, d.Stats)
 		if err != nil {
@@ -167,7 +172,8 @@ type table struct {
 	cols map[string]int
 }
 
-// readTable reads Data/<name>.datc64 and checks that the named columns exist.
+// readTable reads Data/<name>.datc64 and checks that the named columns exist. "_N" names
+// column N when the schema leaves it unnamed, as the table command prints it.
 func readTable(r ot.Reader, schema *dat.Schema, name string, cols ...string) (table, error) {
 	def, ok := schema.Table(name)
 	if !ok {
@@ -175,7 +181,7 @@ func readTable(r ot.Reader, schema *dat.Schema, name string, cols ...string) (ta
 	}
 	t := table{cols: map[string]int{}}
 	for _, c := range cols {
-		i, ok := def.Column(c)
+		i, ok := column(def, c)
 		if !ok {
 			return table{}, fmt.Errorf("table %s: no column %s", name, c)
 		}
@@ -189,6 +195,18 @@ func readTable(r ot.Reader, schema *dat.Schema, name string, cols ...string) (ta
 		return table{}, fmt.Errorf("%s: %w", name, err)
 	}
 	return t, nil
+}
+
+// column finds a named column, or for "_N" column N if it is unnamed.
+func column(def dat.TableDef, name string) (int, bool) {
+	if i, ok := def.Column(name); ok {
+		return i, true
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(name, "_"))
+	if !strings.HasPrefix(name, "_") || err != nil || n < 0 || n >= len(def.Columns) || def.Columns[n].Name != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 func (t table) str(row int, col string) (string, error) {
