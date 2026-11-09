@@ -51,7 +51,7 @@ const schemaJSON = `{"version": 7, "tables": [
 	{"name": "BuffTemplates", "columns": [
 		{"name": "BuffDefinitionsKey", "type": "foreignrow"},
 		{"name": "Buff_StatValues", "type": "i32", "array": true}]},
-	{"name": "BuffDefinitions", "columns": [{"name": "StatsKeys", "type": "foreignrow", "array": true}]},
+	{"name": "BuffDefinitions", "columns": [{"name": "GrantedStats", "type": "foreignrow", "array": true}]},
 	{"name": "QuestStaticRewards", "columns": [
 		{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"},
 		{"name": "StatsKeys", "type": "foreignrow", "array": true}, {"name": "StatValues", "type": "i32", "array": true},
@@ -189,11 +189,11 @@ func game() fstest.MapFS {
 			[]any{uint16(7), refs{1}, int32(3), int32(0), int32(0)},
 		)},
 		"Data/BuffTemplates.datc64": {Data: datc64(
-			[]any{ref(0), i32s{-5, 9}},
-			[]any{ref(1), i32s{1}},
+			[]any{ref(0), i32s{-5, 1}},
+			[]any{ref(1), i32s(nil)},
 		)},
 		"Data/BuffDefinitions.datc64": {Data: datc64(
-			[]any{refs{4}},
+			[]any{refs{4, 0}},
 			[]any{refs(nil)},
 		)},
 		"Data/QuestStaticRewards.datc64": {Data: datc64(
@@ -273,7 +273,7 @@ func TestDataset(t *testing.T) {
 	might := dataset.Node{ID: 2, Kind: dataset.Notable, Ascendancy: "Juggernaut", Neighbours: []uint32{1}}
 	standard, ruthless := might, might
 	standard.Stats = []dataset.StatValue{{Stat: 1, Value: 5}, {Stat: 3, Value: 10}}
-	standard.Buffs = [][]dataset.StatValue{{{Stat: 4, Value: -5}}}
+	standard.Buffs = [][]dataset.StatValue{{{Stat: 4, Value: -5}, {Stat: 0, Value: 1}}}
 	standard.SkillPoints = 1
 	ruthless.Stats = []dataset.StatValue{{Stat: 3, Value: 20}}
 
@@ -384,6 +384,9 @@ func TestDatasetErrors(t *testing.T) {
 		}},
 		{name: "buff with fewer values than stats", game: func(g fstest.MapFS) {
 			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: datc64([]any{refs{4, 4, 4}}, []any{refs(nil)})}
+		}},
+		{name: "buff with more values than stats", game: func(g fstest.MapFS) {
+			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: datc64([]any{refs{4}}, []any{refs(nil)})}
 		}},
 		{name: "buff without definition", game: func(g fstest.MapFS) {
 			g["Data/BuffTemplates.datc64"] = &fstest.MapFile{Data: datc64([]any{ref(-1), i32s{1}}, []any{ref(1), i32s{1}})}

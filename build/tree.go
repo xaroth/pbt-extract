@@ -48,7 +48,7 @@ func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat) (*tre
 	if t.buffTemplates, err = readTable(r, schema, "BuffTemplates", "BuffDefinitionsKey", "Buff_StatValues"); err != nil {
 		return nil, err
 	}
-	if t.buffDefs, err = readTable(r, schema, "BuffDefinitions", "StatsKeys"); err != nil {
+	if t.buffDefs, err = readTable(r, schema, "BuffDefinitions", "GrantedStats"); err != nil {
 		return nil, err
 	}
 	if t.byGraphID, err = index(t.passives, "PassiveSkillGraphId"); err != nil {
@@ -292,7 +292,9 @@ func (tt *treeTables) buff(row int) ([]dataset.StatValue, error) {
 	if def < 0 {
 		return nil, fmt.Errorf("BuffTemplates row %d has no definition", row)
 	}
-	keys, err := tt.buffDefs.ints(def, "StatsKeys")
+	// GrantedStats is StatsKeys followed by Stats2 (flag stats such as zero_chaos_resistance);
+	// Buff_StatValues has one value per GrantedStats entry.
+	keys, err := tt.buffDefs.ints(def, "GrantedStats")
 	if err != nil {
 		return nil, err
 	}
@@ -300,14 +302,12 @@ func (tt *treeTables) buff(row int) ([]dataset.StatValue, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(vals) != len(keys) {
+		return nil, fmt.Errorf("BuffTemplates row %d: %d values for %d stats", row, len(vals), len(keys))
+	}
 	if len(keys) == 0 {
 		return nil, nil // visual-only buff
 	}
-	// Some templates carry extra trailing values with no stat; they are not displayed.
-	if len(vals) < len(keys) {
-		return nil, fmt.Errorf("BuffTemplates row %d: %d values for %d stats", row, len(vals), len(keys))
-	}
-	vals = vals[:len(keys)]
 	var out []dataset.StatValue
 	for i, v := range vals {
 		if keys[i] < 0 || keys[i] >= len(tt.stats) {

@@ -25,7 +25,7 @@ go run . -ooz /path/to/ooz dataset /path/to/game 3.29.3.3 /path/to/tree-export o
 scripts/add-version.sh poe1 <version> <steam-manifest> <dat-schema-commit> <tree-export-tag>
 ```
 
-It needs git, node and npm. Pick the dat-schema commit closest after the patch, and check that the tables you read decode without a row size error.
+It needs git, node and npm. Pick the dat-schema commit closest after the patch, and check that the tables you read decode without a row size error. A later commit is fine when the tables the build reads have the same column types and order; say why in `datSchemaNote` in `source.json`.
 
 ## Develop
 
