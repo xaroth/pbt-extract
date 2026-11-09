@@ -40,7 +40,9 @@ const schemaJSON = `{"version": 7, "tables": [
 		{"name": "Stat3ValueHardmode", "type": "i32"}, {"name": "Stat4ValueHardmode", "type": "i32"},
 		{"name": "Stat5ValueHardmode", "type": "i32"},
 		{"name": "BuffsHardmode", "type": "foreignrow", "array": true},
-		{"name": "SkillPointsGrantedHardmode", "type": "i32"}]},
+		{"name": "SkillPointsGrantedHardmode", "type": "i32"},
+		{"name": "MasteryGroup", "type": "foreignrow"}]},
+	{"name": "PassiveSkillMasteryGroups", "columns": [{"name": "MasteryCountStat", "type": "foreignrow"}]},
 	{"name": "PassiveSkillMasteryEffects", "columns": [
 		{"name": "HASH16", "type": "u16"},
 		{"name": "Stats", "type": "foreignrow", "array": true},
@@ -157,7 +159,14 @@ func passive(id uint16, stats refs, vals [5]int32, buffs refs, points int32, har
 	for _, v := range hVals {
 		row = append(row, v)
 	}
-	return append(row, refs(nil), int32(0))
+	return append(row, refs(nil), int32(0), ref(-1))
+}
+
+// masteryPassive is a PassiveSkills row of a mastery node in mastery group 0.
+func masteryPassive(id uint16) []any {
+	row := passive(id, nil, [5]int32{}, nil, 0, false, nil, [5]int32{})
+	row[len(row)-1] = ref(0)
+	return row
 }
 
 const sdDir = "Metadata/StatDescriptions/"
@@ -173,8 +182,9 @@ func game() fstest.MapFS {
 		"Data/PassiveSkills.datc64": {Data: datc64(
 			passive(1, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
 			passive(2, refs{3, 1}, [5]int32{10, 5}, refs{0, 1}, 1, true, refs{3}, [5]int32{20}),
-			passive(3, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
+			masteryPassive(3),
 		)},
+		"Data/PassiveSkillMasteryGroups.datc64": {Data: datc64([]any{ref(2)})},
 		"Data/PassiveSkillMasteryEffects.datc64": {Data: datc64(
 			[]any{uint16(7), refs{1}, int32(3), int32(0), int32(0)},
 		)},
@@ -253,7 +263,9 @@ func TestDataset(t *testing.T) {
 			Nodes: []dataset.Node{
 				{ID: 1, Kind: dataset.ClassStart, Neighbours: []uint32{2}},
 				n2,
-				{ID: 3, Kind: dataset.Mastery, MasteryEffects: []dataset.MasteryEffect{{ID: 7, Stats: []dataset.StatValue{{Stat: 1, Value: 3}}}}},
+				// the mastery's group counts it in stat 2
+				{ID: 3, Kind: dataset.Mastery, Stats: []dataset.StatValue{{Stat: 2, Value: 1}},
+					MasteryEffects: []dataset.MasteryEffect{{ID: 7, Stats: []dataset.StatValue{{Stat: 1, Value: 3}}}}},
 			},
 			JewelSlots: []uint32{2},
 		}
@@ -332,6 +344,10 @@ func TestDatasetErrors(t *testing.T) {
 		{name: "missing tree table", game: func(g fstest.MapFS) { delete(g, "Data/BuffDefinitions.datc64") }},
 		{name: "unnamed column taken by a name", schema: strings.Replace(schemaJSON, `{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"}`,
 			`{"name": "QuestFlag", "type": "foreignrow"}, {"name": "Points", "type": "i32"}`, 1)},
+		{name: "mastery count stat out of range", game: func(g fstest.MapFS) {
+			g["Data/PassiveSkillMasteryGroups.datc64"] = &fstest.MapFile{Data: datc64([]any{ref(99)})}
+		}},
+		{name: "missing mastery groups", game: func(g fstest.MapFS) { delete(g, "Data/PassiveSkillMasteryGroups.datc64") }},
 		{name: "missing quest table", game: func(g fstest.MapFS) { delete(g, "Data/QuestStaticRewards.datc64") }},
 		{name: "quest stats without values", game: func(g fstest.MapFS) {
 			g["Data/QuestStaticRewards.datc64"] = &fstest.MapFile{Data: datc64(questReward(1, 0, refs{4}, nil, 1, 0, 0, false))}
