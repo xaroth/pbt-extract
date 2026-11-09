@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"maps"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"unicode/utf16"
@@ -48,7 +49,16 @@ const schemaJSON = `{"version": 7, "tables": [
 	{"name": "BuffTemplates", "columns": [
 		{"name": "BuffDefinitionsKey", "type": "foreignrow"},
 		{"name": "Buff_StatValues", "type": "i32", "array": true}]},
-	{"name": "BuffDefinitions", "columns": [{"name": "StatsKeys", "type": "foreignrow", "array": true}]}
+	{"name": "BuffDefinitions", "columns": [{"name": "StatsKeys", "type": "foreignrow", "array": true}]},
+	{"name": "QuestStaticRewards", "columns": [
+		{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"},
+		{"name": "StatsKeys", "type": "foreignrow", "array": true}, {"name": "StatValues", "type": "i32", "array": true},
+		{"name": "QuestKey", "type": "foreignrow"}, {"name": null, "type": "i32"},
+		{"name": "ClientStringsKey", "type": "foreignrow"}, {"name": null, "type": "i32"},
+		{"name": "StatValuesHardmode", "type": "i32", "array": true}, {"name": "ClientStringHardmode", "type": "foreignrow"},
+		{"name": null, "type": "bool"}]},
+	{"name": "QuestFlags", "columns": [{"name": "Id", "type": "string"}]},
+	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]}
 ]}`
 
 // Cell types for datc64 beyond string and int32.
@@ -130,6 +140,12 @@ func schema(t *testing.T) *dat.Schema {
 	return s
 }
 
+// questReward is one QuestStaticRewards row: flag, passive points, stats and values, quest,
+// ascendancy points, refund points and the league mechanic flag.
+func questReward(flag int, points int32, stats refs, vals i32s, quest int, asc, refund int32, league bool) []any {
+	return []any{ref(flag), points, stats, vals, ref(quest), asc, ref(-1), refund, vals, ref(-1), league}
+}
+
 // passive is one PassiveSkills row: graph id, stats and values, buffs, points, then the
 // hardmode flag, stats and values. Hardmode buffs and points are empty.
 func passive(id uint16, stats refs, vals [5]int32, buffs refs, points int32, hard bool, hStats refs, hVals [5]int32) []any {
@@ -170,6 +186,16 @@ func game() fstest.MapFS {
 			[]any{refs{4}},
 			[]any{refs(nil)},
 		)},
+		"Data/QuestStaticRewards.datc64": {Data: datc64(
+			questReward(0, 1, nil, nil, 0, 0, 0, false),
+			questReward(1, 0, refs{4, 3}, i32s{-30, -20}, 1, 0, 2, false),
+			questReward(2, 0, nil, nil, -1, 2, 0, false),
+			questReward(3, 3, nil, nil, -1, 0, 3, true),
+		)},
+		"Data/QuestFlags.datc64": {Data: datc64(
+			[]any{"a2q7-QuestRewardTaken"}, []any{"a5q6-CompletedBoss"}, []any{"LabyrinthComplete1"}, []any{"EndlessDelvePassiveRewards1"},
+		)},
+		"Data/Quest.datc64":                                {Data: datc64([]any{"a2q7", int32(2)}, []any{"a5q6", int32(5)})},
 		"Metadata/Characters/Character.ot":                 {Data: utf16le("extends \"nothing\"\nStats\n{\n\tlife_per_level = 12\n\tlevel = 1\n}\n")},
 		"Metadata/Characters/Str/Str.ot":                   {Data: utf16le("extends \"Metadata/Characters/Character\"\nStats\n{\n}\n")},
 		sdDir + "passive_skill_aura_stat_descriptions.txt": {Data: utf16le("include \"" + sdDir + "passive_skill_stat_descriptions.txt\"\n")},
@@ -247,7 +273,13 @@ func TestDataset(t *testing.T) {
 			Stats: []dataset.StatValue{{Stat: 0, Value: 1}, {Stat: 1, Value: 12}},
 		}},
 		Constants: []dataset.Constant{{ID: "life_per_strength", Value: 1, Per: 2}},
-		Trees:     []dataset.Tree{baseTree("standard", standard), baseTree("ruthless", ruthless)},
+		// the league mechanic row is left out; reward stats are sorted
+		Quests: []dataset.Quest{
+			{Quest: "a2q7", Flag: "a2q7-QuestRewardTaken", Act: 2, PassivePoints: 1},
+			{Quest: "a5q6", Flag: "a5q6-CompletedBoss", Act: 5, RefundPoints: 2, Stats: []dataset.StatValue{{Stat: 3, Value: -20}, {Stat: 4, Value: -30}}},
+			{Flag: "LabyrinthComplete1", AscendancyPoints: 2},
+		},
+		Trees: []dataset.Tree{baseTree("standard", standard), baseTree("ruthless", ruthless)},
 		Texts: []dataset.Text{{
 			Language:       "en",
 			NodeNames:      []dataset.NodeName{{ID: 1, Name: "MARAUDER"}, {ID: 2, Name: "Might"}, {ID: 3, Name: "Mastery"}},
@@ -298,6 +330,15 @@ func TestDatasetErrors(t *testing.T) {
 			g["Data/Stats.datc64"] = &fstest.MapFile{Data: datc64([]any{int32(1)})}
 		}},
 		{name: "missing tree table", game: func(g fstest.MapFS) { delete(g, "Data/BuffDefinitions.datc64") }},
+		{name: "unnamed column taken by a name", schema: strings.Replace(schemaJSON, `{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"}`,
+			`{"name": "QuestFlag", "type": "foreignrow"}, {"name": "Points", "type": "i32"}`, 1)},
+		{name: "missing quest table", game: func(g fstest.MapFS) { delete(g, "Data/QuestStaticRewards.datc64") }},
+		{name: "quest stats without values", game: func(g fstest.MapFS) {
+			g["Data/QuestStaticRewards.datc64"] = &fstest.MapFile{Data: datc64(questReward(1, 0, refs{4}, nil, 1, 0, 0, false))}
+		}},
+		{name: "quest stat out of range", game: func(g fstest.MapFS) {
+			g["Data/QuestStaticRewards.datc64"] = &fstest.MapFile{Data: datc64(questReward(1, 0, refs{9}, i32s{1}, 1, 0, 0, false))}
+		}},
 		{name: "repeated graph id", game: func(g fstest.MapFS) {
 			g["Data/PassiveSkills.datc64"] = &fstest.MapFile{Data: datc64(
 				passive(1, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
