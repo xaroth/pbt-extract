@@ -3,7 +3,6 @@ package build_test
 import (
 	"encoding/binary"
 	"maps"
-	"strings"
 	"testing"
 	"testing/fstest"
 	"unicode/utf16"
@@ -53,12 +52,12 @@ const schemaJSON = `{"version": 7, "tables": [
 		{"name": "Buff_StatValues", "type": "i32", "array": true}]},
 	{"name": "BuffDefinitions", "columns": [{"name": "StatsKeys", "type": "foreignrow", "array": true}]},
 	{"name": "QuestStaticRewards", "columns": [
-		{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"},
+		{"name": "QuestFlag", "type": "foreignrow"}, {"name": "PassivePoints", "type": "i32"},
 		{"name": "StatsKeys", "type": "foreignrow", "array": true}, {"name": "StatValues", "type": "i32", "array": true},
-		{"name": "QuestKey", "type": "foreignrow"}, {"name": null, "type": "i32"},
-		{"name": "ClientStringsKey", "type": "foreignrow"}, {"name": null, "type": "i32"},
+		{"name": "QuestKey", "type": "foreignrow"}, {"name": "AscendancyPoints", "type": "i32"},
+		{"name": "ClientStringsKey", "type": "foreignrow"}, {"name": "RefundPoints", "type": "i32"},
 		{"name": "StatValuesHardmode", "type": "i32", "array": true}, {"name": "ClientStringHardmode", "type": "foreignrow"},
-		{"name": null, "type": "bool"}]},
+		{"name": "LeagueReward", "type": "bool"}]},
 	{"name": "QuestFlags", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]}
 ]}`
@@ -303,8 +302,6 @@ func TestDatasetErrors(t *testing.T) {
 			g["Data/Stats.datc64"] = &fstest.MapFile{Data: encodeAs(t, statsI32, "Stats", []any{int32(1)})}
 		}},
 		{name: "missing tree table", game: func(_ *testing.T, g fstest.MapFS) { delete(g, "Data/BuffDefinitions.datc64") }},
-		{name: "unnamed column taken by a name", schema: strings.Replace(schemaJSON, `{"name": "QuestFlag", "type": "foreignrow"}, {"name": null, "type": "i32"}`,
-			`{"name": "QuestFlag", "type": "foreignrow"}, {"name": "Points", "type": "i32"}`, 1)},
 		{name: "mastery count stat out of range", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/PassiveSkillMasteryGroups.datc64"] = &fstest.MapFile{Data: encode(t, "PassiveSkillMasteryGroups", []any{99})}
 		}},

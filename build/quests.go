@@ -11,23 +11,11 @@ import (
 	"github.com/xaroth/pbt-extract/ot"
 )
 
-// QuestStaticRewards columns dat-schema leaves unnamed, by our reading of the 3.28.0.16 and
-// 3.29.3.3 rows: passive points sum to 24 over the campaign quests (23 plus 1 for a2q7, killing
-// all bandits, as PoB's Build.lua counts); ascendancy points are 2 on each LabyrinthComplete
-// flag (8 in all); refund points are 2 on ten campaign quests (20 in all); the flag column
-// marks league mechanic rows (Delve, Heist, Descent), which are not campaign rewards.
-const (
-	colPassivePoints    = "_1"
-	colAscendancyPoints = "_5"
-	colRefundPoints     = "_7"
-	colLeagueReward     = "_10"
-)
-
 // quests reads the campaign and labyrinth rows of QuestStaticRewards, in table order, leaving
 // out league mechanic rows. nStats is the number of rows in Stats.
 func quests(r ot.Reader, schema *dat.Schema, nStats int) ([]dataset.Quest, error) {
 	rewards, err := readTable(r, schema, "QuestStaticRewards", "QuestFlag", "QuestKey", "StatsKeys", "StatValues",
-		colPassivePoints, colAscendancyPoints, colRefundPoints, colLeagueReward)
+		"PassivePoints", "AscendancyPoints", "RefundPoints", "LeagueReward")
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +42,7 @@ func quests(r ot.Reader, schema *dat.Schema, nStats int) ([]dataset.Quest, error
 
 func questRow(rewards, flags, qs table, row, nStats int) (dataset.Quest, bool, error) {
 	var q dataset.Quest
-	league, err := rewards.boolean(row, colLeagueReward)
+	league, err := rewards.boolean(row, "LeagueReward")
 	if err != nil || league {
 		return q, false, err
 	}
@@ -76,7 +64,7 @@ func questRow(rewards, flags, qs table, row, nStats int) (dataset.Quest, bool, e
 		}
 	}
 	for col, dst := range map[string]*int32{
-		colPassivePoints: &q.PassivePoints, colAscendancyPoints: &q.AscendancyPoints, colRefundPoints: &q.RefundPoints,
+		"PassivePoints": &q.PassivePoints, "AscendancyPoints": &q.AscendancyPoints, "RefundPoints": &q.RefundPoints,
 	} {
 		if *dst, err = rewards.i32(row, col); err != nil {
 			return q, false, err

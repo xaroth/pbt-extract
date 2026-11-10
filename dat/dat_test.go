@@ -232,3 +232,67 @@ func TestColumn(t *testing.T) {
 		})
 	}
 }
+
+func TestNameColumns(t *testing.T) {
+	t.Parallel()
+	// Table T ends with one unnamed list of unknown element type, after Names.
+	count := dat.ColumnName{Table: "T", After: "Names", Gap: []string{"[array]"}, Name: "Count"}
+	with := func(f func(*dat.ColumnName)) []dat.ColumnName {
+		c := count
+		f(&c)
+		return []dat.ColumnName{c}
+	}
+	testCases := []struct {
+		name    string
+		names   []dat.ColumnName
+		wantErr string
+	}{
+		{name: "unnamed column", names: []dat.ColumnName{count}},
+		{name: "unknown table", names: with(func(c *dat.ColumnName) { c.Table = "X" }), wantErr: "table not in schema"},
+		{name: "unknown after", names: with(func(c *dat.ColumnName) { c.After = "X" }), wantErr: "no column X"},
+		{name: "position outside the gap", names: with(func(c *dat.ColumnName) { c.Position = 1 }), wantErr: "outside a gap of 1"},
+		{name: "kind differs", names: with(func(c *dat.ColumnName) { c.Gap = []string{"array"} }), wantErr: "are [[array]], want [array]"},
+		{name: "gap grew", names: with(func(c *dat.ColumnName) { c.Gap = []string{"[array]", "i32"} }), wantErr: "want [[array] i32]"},
+		{name: "column named by dat-schema", names: with(func(c *dat.ColumnName) { c.After = "Ints" }), wantErr: "unnamed columns after Ints are []"},
+		{name: "name taken", names: with(func(c *dat.ColumnName) { c.Name = "Id" }), wantErr: "already taken"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s, err := dat.ParseSchema([]byte(schemaJSON))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = s.NameColumns(testCase.names)
+			if testCase.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), testCase.wantErr) {
+					t.Fatalf("got error %v, want one containing %q", err, testCase.wantErr)
+				}
+				def, _ := s.Table("T")
+				if def.Columns[13].Name != nil {
+					t.Error("schema changed on error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			def, _ := s.Table("T")
+			if got, ok := def.Column("Count"); !ok || got != 13 {
+				t.Errorf(`Column("Count"): got %d, %v, want 13, true`, got, ok)
+			}
+		})
+	}
+}
+
+func TestKind(t *testing.T) {
+	t.Parallel()
+	def := tableDef(t)
+	var got []string
+	for _, i := range []int{0, 10, 11} {
+		got = append(got, def.Columns[i].Kind())
+	}
+	if diff := cmp.Diff([]string{"string", "interval i32", "[i32]"}, got); diff != "" {
+		t.Errorf("(-want +got)\n%s", diff)
+	}
+}

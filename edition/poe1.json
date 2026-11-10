@@ -50,6 +50,52 @@
       "source": "Path of Building 3dbca44, Modules/CalcSetup.lua:617"
     }
   ],
+  "columns": [
+    {
+      "table": "QuestStaticRewards",
+      "after": "QuestFlag",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "PassivePoints",
+      "note": "Passive skill points the quest grants. They sum to 24 over the campaign: 23, plus 1 for a2q7 (killing all bandits), as Path of Building Build.lua also counts.",
+      "source": "Our reading of the QuestStaticRewards rows of 3.28.0.16 and 3.29.3.3"
+    },
+    {
+      "table": "QuestStaticRewards",
+      "after": "QuestKey",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "AscendancyPoints",
+      "note": "Ascendancy points: 2 on each LabyrinthComplete flag, 8 in all.",
+      "source": "Our reading of the QuestStaticRewards rows of 3.28.0.16 and 3.29.3.3"
+    },
+    {
+      "table": "QuestStaticRewards",
+      "after": "ClientStringsKey",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "RefundPoints",
+      "note": "Passive refund points: 2 on ten campaign quests, 20 in all.",
+      "source": "Our reading of the QuestStaticRewards rows of 3.28.0.16 and 3.29.3.3"
+    },
+    {
+      "table": "QuestStaticRewards",
+      "after": "ClientStringHardmode",
+      "gap": [
+        "bool"
+      ],
+      "position": 0,
+      "name": "LeagueReward",
+      "note": "Set on league mechanic rows (Delve, Heist, Descent), which are not campaign rewards.",
+      "source": "Our reading of the QuestStaticRewards rows of 3.28.0.16 and 3.29.3.3"
+    }
+  ],
   "fromGameData": [
     {
       "id": "base_life",
