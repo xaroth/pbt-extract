@@ -96,7 +96,7 @@ func TestRef(t *testing.T) {
 		wantRow int
 		wantOK  bool
 	}{
-		{"zero is null", dat.Ref{}, -1, false},
+		{"zero is null", dat.Ref{}, 0, false},
 		{"row 0", dat.RefTo(0), 0, true},
 		{"row 7", dat.RefTo(7), 7, true},
 	}
@@ -123,6 +123,12 @@ func TestRowsErrors(t *testing.T) {
 	}{
 		{"unknown table", func() error { _, err := dat.Rows[tRow](s, "X", good); return err }, "table X not in schema"},
 		{"not a struct", func() error { _, err := dat.Rows[int](s, "T", good); return err }, "not a struct"},
+		{"unexported field", func() error {
+			_, err := dat.Rows[struct {
+				id string `dat:"Id"`
+			}](s, "T", good)
+			return err
+		}, "field id is not exported"},
 		{"field without tag", func() error {
 			_, err := dat.Rows[struct{ ID string }](s, "T", good)
 			return err

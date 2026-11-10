@@ -8,14 +8,20 @@ import (
 // Ref is a row or foreignrow value: a row index into the referenced table. The zero Ref is
 // null.
 type Ref struct {
-	row int // index + 1, so the zero value is null
+	row int
+	ok  bool
 }
 
-// RefTo returns a reference to row.
-func RefTo(row int) Ref { return Ref{row + 1} }
+// RefTo returns a reference to row, which must not be negative.
+func RefTo(row int) Ref {
+	if row < 0 {
+		panic(fmt.Sprintf("dat.RefTo(%d): negative row", row))
+	}
+	return Ref{row: row, ok: true}
+}
 
 // Row returns the referenced row index, and false for a null reference.
-func (r Ref) Row() (int, bool) { return r.row - 1, r.row > 0 }
+func (r Ref) Row() (int, bool) { return r.row, r.ok }
 
 // Equal reports whether r and o reference the same row; go-cmp uses it.
 func (r Ref) Equal(o Ref) bool { return r == o }
@@ -48,9 +54,11 @@ var (
 // Every field names a column in its dat tag. A scalar column takes the Go type Table.Value
 // decodes it to, with Ref for row and foreignrow; an interval takes a two-element array of
 // it, a list a slice of it. A Ref field names the table it references in its ref tag, which
-// must exist and match the schema's references (for row, the table itself). Lists of unknown
-// element type are not supported. Fields are checked against the schema before any row is
-// decoded.
+// must exist and match the schema's references (for row, the table itself); for a foreignrow
+// column whose schema has no references, any table in the schema is accepted. A reference to
+// a row past the end of the referenced table is not detected here: the step that joins the
+// two tables checks it. Fields must be exported. Lists of unknown element type are not
+// supported. Fields are checked against the schema before any row is decoded.
 func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	def, ok := s.Table(name)
 	if !ok {
@@ -86,6 +94,9 @@ func fieldColumns(s *Schema, def TableDef, typ reflect.Type) ([]int, error) {
 	cols := make([]int, typ.NumField())
 	for i := range typ.NumField() {
 		f := typ.Field(i)
+		if !f.IsExported() {
+			return nil, fmt.Errorf("field %s is not exported", f.Name)
+		}
 		name, ok := f.Tag.Lookup("dat")
 		if !ok {
 			return nil, fmt.Errorf("field %s has no dat tag", f.Name)
