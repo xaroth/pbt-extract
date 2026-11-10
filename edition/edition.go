@@ -1,6 +1,6 @@
-// Package constants holds per edition the constants the game data does not contain, each with
-// a note and a source.
-package constants
+// Package edition holds what pbt-extract knows about a game edition that its game data does
+// not say, such as constants, each with a note and a source. <game>.json holds it per edition.
+package edition
 
 import (
 	"embed"
@@ -11,6 +11,12 @@ import (
 //go:embed *.json
 var files embed.FS
 
+// Edition is one game edition, such as poe1.
+type Edition struct {
+	Name      string
+	Constants []Constant
+}
+
 // Constant is an edition constant, as Value per Per.
 type Constant struct {
 	ID     string `json:"id"`
@@ -20,12 +26,12 @@ type Constant struct {
 	Source string `json:"source"`
 }
 
-// Load returns the constants of game from <game>.json. Every constant needs an id, per, note
-// and source.
-func Load(game string) ([]Constant, error) {
+// Load returns the edition game from <game>.json. Every constant needs an id, per, note and
+// source.
+func Load(game string) (*Edition, error) {
 	b, err := files.ReadFile(game + ".json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("edition %s: %w", game, err)
 	}
 	var f struct {
 		Constants []Constant `json:"constants"`
@@ -38,5 +44,5 @@ func Load(game string) ([]Constant, error) {
 			return nil, fmt.Errorf("%s.json: constant %q needs id, per, note and source", game, c.ID)
 		}
 	}
-	return f.Constants, nil
+	return &Edition{Name: game, Constants: f.Constants}, nil
 }

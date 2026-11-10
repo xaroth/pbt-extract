@@ -30,8 +30,8 @@ import (
 
 	"github.com/xaroth/pbt-extract/build"
 	"github.com/xaroth/pbt-extract/bundle"
-	"github.com/xaroth/pbt-extract/constants"
 	"github.com/xaroth/pbt-extract/dat"
+	"github.com/xaroth/pbt-extract/edition"
 	"github.com/xaroth/pbt-extract/input"
 	"github.com/xaroth/pbt-extract/ooz"
 	"github.com/xaroth/pbt-extract/ot"
@@ -143,11 +143,11 @@ func writeDataset(a *bundle.Archive, game, version string, in input.Dir, out str
 		}
 		bi.Trees = append(bi.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
-	consts, err := constants.Load(game)
+	ed, err := edition.Load(game)
 	if err != nil {
 		return err
 	}
-	for _, c := range consts {
+	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}
 	d, err := build.Dataset(bi)
