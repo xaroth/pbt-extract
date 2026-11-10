@@ -1,9 +1,9 @@
-package build_test
+package extract_test
 
 import (
 	"testing"
 
-	"github.com/xaroth/pbt-extract/build"
+	"github.com/xaroth/pbt-extract/extract"
 )
 
 func TestReads(t *testing.T) {
@@ -18,7 +18,7 @@ func TestReads(t *testing.T) {
 		"Art/Textures/thing.dds":      false,
 		"Data/Stats.dat":              false,
 	} {
-		if got := build.Reads(path); got != want {
+		if got := extract.Reads(path); got != want {
 			t.Errorf("Reads(%q) = %v, want %v", path, got, want)
 		}
 	}

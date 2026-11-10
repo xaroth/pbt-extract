@@ -1,4 +1,4 @@
-package build_test
+package extract_test
 
 import (
 	"encoding/binary"
@@ -12,10 +12,10 @@ import (
 
 	"github.com/xaroth/pbt-engine/dataset"
 
-	"github.com/xaroth/pbt-extract/build"
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/dat/dattest"
-	"github.com/xaroth/pbt-extract/tree"
+	"github.com/xaroth/pbt-extract/extract"
+	"github.com/xaroth/pbt-extract/treeexport"
 )
 
 const schemaJSON = `{"version": 7, "tables": [
@@ -172,18 +172,18 @@ func game(t *testing.T) fstest.MapFS {
 	}
 }
 
-func export() *tree.Export {
+func export() *treeexport.Export {
 	start := 0
-	e := &tree.Export{
-		Classes: []tree.Class{{
+	e := &treeexport.Export{
+		Classes: []treeexport.Class{{
 			Name: "Marauder", BaseStrength: 32, BaseDexterity: 14, BaseIntelligence: 14,
-			Ascendancies: []tree.Ascendancy{{ID: "Juggernaut", Name: "Juggernaut"}},
+			Ascendancies: []treeexport.Ascendancy{{ID: "Juggernaut", Name: "Juggernaut"}},
 		}},
-		AlternateAscendancies: []tree.Ascendancy{{ID: "Bloodline", Name: "Bloodline"}},
-		Nodes: map[string]tree.Node{
+		AlternateAscendancies: []treeexport.Ascendancy{{ID: "Bloodline", Name: "Bloodline"}},
+		Nodes: map[string]treeexport.Node{
 			"1": {Skill: 1, Name: "MARAUDER", ClassStartIndex: &start, Out: []string{"2"}},
 			"2": {Skill: 2, Name: "Might", IsNotable: true, AscendancyName: "Juggernaut", In: []string{"1"}, Out: []string{"1"}},
-			"3": {Skill: 3, Name: "Mastery", IsMastery: true, MasteryEffects: []tree.MasteryEffect{{Effect: 7}}},
+			"3": {Skill: 3, Name: "Mastery", IsMastery: true, MasteryEffects: []treeexport.MasteryEffect{{Effect: 7}}},
 		},
 		JewelSlots: []uint32{2},
 	}
@@ -191,12 +191,12 @@ func export() *tree.Export {
 	return e
 }
 
-func input(t *testing.T, g fstest.MapFS, e *tree.Export) build.Input {
+func input(t *testing.T, g fstest.MapFS, e *treeexport.Export) extract.Input {
 	t.Helper()
-	return build.Input{
+	return extract.Input{
 		Game:   g,
 		Schema: schema(t),
-		Trees: []build.Variant{
+		Trees: []extract.Variant{
 			{Name: "standard", Export: e},
 			{Name: "ruthless", Export: e, Hardmode: true},
 		},
@@ -206,7 +206,7 @@ func input(t *testing.T, g fstest.MapFS, e *tree.Export) build.Input {
 
 func TestDataset(t *testing.T) {
 	t.Parallel()
-	got, err := build.Dataset(input(t, game(t), export()))
+	got, err := extract.Dataset(input(t, game(t), export()))
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestDataset(t *testing.T) {
 	for _, s := range got.Texts[0].Descriptions {
 		scopes = append(scopes, s.Name)
 	}
-	wantScopes := []string{build.DescriptionsRoot, sdDir + "passive_skill_stat_descriptions.txt", sdDir + "stat_descriptions.txt"}
+	wantScopes := []string{extract.DescriptionsRoot, sdDir + "passive_skill_stat_descriptions.txt", sdDir + "stat_descriptions.txt"}
 	if diff := cmp.Diff(wantScopes, scopes); diff != "" {
 		t.Errorf("description scopes mismatch (-want +got):\n%s", diff)
 	}
@@ -279,8 +279,8 @@ func TestDatasetErrors(t *testing.T) {
 	testCases := []struct {
 		name   string
 		game   func(*testing.T, fstest.MapFS)
-		export func(*tree.Export)
-		input  func(*build.Input)
+		export func(*treeexport.Export)
+		input  func(*extract.Input)
 		schema string
 	}{
 		{name: "unknown stat", game: func(_ *testing.T, g fstest.MapFS) {
@@ -349,26 +349,26 @@ func TestDatasetErrors(t *testing.T) {
 		{name: "buff stat out of range", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encode(t, "BuffDefinitions", []any{[]int{9}}, []any{[]int(nil)})}
 		}},
-		{name: "node not in PassiveSkills", export: func(e *tree.Export) { e.Nodes["9"] = tree.Node{Skill: 9} }},
-		{name: "unknown mastery effect", export: func(e *tree.Export) {
+		{name: "node not in PassiveSkills", export: func(e *treeexport.Export) { e.Nodes["9"] = treeexport.Node{Skill: 9} }},
+		{name: "unknown mastery effect", export: func(e *treeexport.Export) {
 			n := e.Nodes["3"]
-			n.MasteryEffects = []tree.MasteryEffect{{Effect: 8}}
+			n.MasteryEffects = []treeexport.MasteryEffect{{Effect: 8}}
 			e.Nodes["3"] = n
 		}},
-		{name: "edge to unknown node", export: func(e *tree.Export) {
+		{name: "edge to unknown node", export: func(e *treeexport.Export) {
 			n := e.Nodes["2"]
 			n.Out = []string{"9"}
 			e.Nodes["2"] = n
 		}},
-		{name: "edge not a number", export: func(e *tree.Export) {
+		{name: "edge not a number", export: func(e *treeexport.Export) {
 			n := e.Nodes["2"]
 			n.Out = []string{"x"}
 			e.Nodes["2"] = n
 		}},
-		{name: "class without start node", export: func(e *tree.Export) {
-			e.Classes = append(e.Classes, tree.Class{Name: "Ranger"})
+		{name: "class without start node", export: func(e *treeexport.Export) {
+			e.Classes = append(e.Classes, treeexport.Class{Name: "Ranger"})
 		}},
-		{name: "node renamed in another variant", input: func(in *build.Input) {
+		{name: "node renamed in another variant", input: func(in *extract.Input) {
 			other := *in.Trees[0].Export
 			other.Nodes = maps.Clone(other.Nodes)
 			n := other.Nodes["2"]
@@ -376,7 +376,7 @@ func TestDatasetErrors(t *testing.T) {
 			other.Nodes["2"] = n
 			in.Trees[1].Export = &other
 		}},
-		{name: "class start node twice", export: func(e *tree.Export) {
+		{name: "class start node twice", export: func(e *treeexport.Export) {
 			n := e.Nodes["3"]
 			n.ClassStartIndex = e.Nodes["1"].ClassStartIndex
 			e.Nodes["3"] = n
@@ -413,7 +413,7 @@ func TestDatasetErrors(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := build.Dataset(in); err == nil {
+			if _, err := extract.Dataset(in); err == nil {
 				t.Errorf("Dataset: got nil error, want an error")
 			}
 		})

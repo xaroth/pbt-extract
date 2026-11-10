@@ -26,7 +26,7 @@ go run . stats <in> Metadata/Characters/Str/Str
 
 Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
-`edition/<game>.json` holds what the game data of an edition does not say, such as constants, each with a note and source.
+`edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed.
 
 ## Develop
 

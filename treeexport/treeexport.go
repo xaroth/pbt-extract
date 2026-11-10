@@ -1,6 +1,6 @@
-// Package tree reads the official passive tree export (data.json in
+// Package treeexport reads the official passive tree export (data.json in
 // https://github.com/grindinggear/skilltree-export).
-package tree
+package treeexport
 
 import (
 	"encoding/json"

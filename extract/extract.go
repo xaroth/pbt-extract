@@ -1,5 +1,5 @@
-// Package build turns game files into pbt dataset tables.
-package build
+// Package extract turns game files into pbt dataset tables.
+package extract
 
 import (
 	"cmp"

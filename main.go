@@ -28,14 +28,14 @@ import (
 
 	"github.com/xaroth/pbt-engine/dataset"
 
-	"github.com/xaroth/pbt-extract/build"
 	"github.com/xaroth/pbt-extract/bundle"
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/edition"
+	"github.com/xaroth/pbt-extract/extract"
 	"github.com/xaroth/pbt-extract/input"
 	"github.com/xaroth/pbt-extract/ooz"
 	"github.com/xaroth/pbt-extract/ot"
-	"github.com/xaroth/pbt-extract/tree"
+	"github.com/xaroth/pbt-extract/treeexport"
 )
 
 const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
@@ -138,7 +138,7 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	if err != nil {
 		return err
 	}
-	bi := build.Input{Game: a, Schema: schema}
+	bi := extract.Input{Game: a, Schema: schema}
 	// Ruthless uses the hardmode columns of PassiveSkills.
 	treeFiles := []struct {
 		variant, file string
@@ -153,16 +153,16 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 		if err != nil {
 			return err
 		}
-		e, err := tree.Parse(b)
+		e, err := treeexport.Parse(b)
 		if err != nil {
 			return fmt.Errorf("%s: %w", tf.file, err)
 		}
-		bi.Trees = append(bi.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
+		bi.Trees = append(bi.Trees, extract.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
 	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}
-	d, err := build.Dataset(bi)
+	d, err := extract.Dataset(bi)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func writeBundles(a *bundle.Archive) error {
 	}
 	var files []string
 	for _, p := range paths {
-		if !build.Reads(p) {
+		if !extract.Reads(p) {
 			continue
 		}
 		f, ok := a.BundleFile(p)

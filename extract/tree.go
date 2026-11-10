@@ -1,4 +1,4 @@
-package build
+package extract
 
 import (
 	"cmp"
@@ -11,14 +11,14 @@ import (
 
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ot"
-	"github.com/xaroth/pbt-extract/tree"
+	"github.com/xaroth/pbt-extract/treeexport"
 )
 
 // Variant is one tree export to include, such as "standard" from data.json. Hardmode selects
 // the ruthless stat columns of PassiveSkills.
 type Variant struct {
 	Name     string
-	Export   *tree.Export
+	Export   *treeexport.Export
 	Hardmode bool
 }
 
@@ -125,7 +125,7 @@ func (tt *treeTables) build(v Variant, classes map[int]string) (dataset.Tree, er
 	return t, nil
 }
 
-func ascendancies(as []tree.Ascendancy) []dataset.Ascendancy {
+func ascendancies(as []treeexport.Ascendancy) []dataset.Ascendancy {
 	var out []dataset.Ascendancy
 	for _, a := range as {
 		out = append(out, dataset.Ascendancy{ID: a.ID})
@@ -133,7 +133,7 @@ func ascendancies(as []tree.Ascendancy) []dataset.Ascendancy {
 	return out
 }
 
-func (tt *treeTables) node(n tree.Node, e *tree.Export, hardmode bool) (dataset.Node, error) {
+func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode bool) (dataset.Node, error) {
 	nd := dataset.Node{
 		ID:                   n.Skill,
 		Kind:                 kind(n),
@@ -238,7 +238,7 @@ func (tt *treeTables) masteryCount(row int, stats []dataset.StatValue) ([]datase
 	return append(stats, dataset.StatValue{Stat: uint32(stat), Value: 1}), nil
 }
 
-func kind(n tree.Node) dataset.NodeKind {
+func kind(n treeexport.Node) dataset.NodeKind {
 	switch {
 	case n.ClassStartIndex != nil:
 		return dataset.ClassStart
