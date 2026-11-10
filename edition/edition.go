@@ -1,17 +1,18 @@
 // Package edition holds what pbt-extract knows about a game edition that its game data does
 // not say, such as constants and names for columns dat-schema leaves unnamed, each with a note
-// and a source. <game>.json holds it per edition.
+// and a source. Each edition has a folder: <game>/constants.json and <game>/columns.json.
 package edition
 
 import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/xaroth/pbt-extract/dat"
 )
 
-//go:embed *.json
+//go:embed */*.json
 var files embed.FS
 
 // Edition is one game edition, such as poe1.
@@ -46,16 +47,22 @@ func (e *Edition) ColumnNames() []dat.ColumnName {
 	return out
 }
 
-// Load returns the edition game from <game>.json. Every constant needs an id, per, note and
+// Load returns the edition game from its folder. Every constant needs an id, per, note and
 // source; every column name a table, after, gap, position, name, note and source.
 func Load(game string) (*Edition, error) {
-	b, err := files.ReadFile(game + ".json")
-	if err != nil {
-		return nil, fmt.Errorf("edition %s: %w", game, err)
-	}
-	var f struct {
+	var c struct {
 		Constants []Constant `json:"constants"`
-		Columns   []struct {
+	}
+	if err := readJSON(game, "constants.json", &c); err != nil {
+		return nil, err
+	}
+	for _, k := range c.Constants {
+		if k.ID == "" || k.Per == 0 || k.Note == "" || k.Source == "" {
+			return nil, fmt.Errorf("%s/constants.json: constant %q needs id, per, note and source", game, k.ID)
+		}
+	}
+	var n struct {
+		Columns []struct {
 			Table    string   `json:"table"`
 			After    string   `json:"after"`
 			Gap      []string `json:"gap"`
@@ -65,24 +72,30 @@ func Load(game string) (*Edition, error) {
 			Source   string   `json:"source"`
 		} `json:"columns"`
 	}
-	if err := json.Unmarshal(b, &f); err != nil {
-		return nil, fmt.Errorf("%s.json: %w", game, err)
+	if err := readJSON(game, "columns.json", &n); err != nil {
+		return nil, err
 	}
-	for _, c := range f.Constants {
-		if c.ID == "" || c.Per == 0 || c.Note == "" || c.Source == "" {
-			return nil, fmt.Errorf("%s.json: constant %q needs id, per, note and source", game, c.ID)
-		}
-	}
-	e := &Edition{Name: game, Constants: f.Constants}
-	for _, c := range f.Columns {
-		if c.Table == "" || c.After == "" || len(c.Gap) == 0 || c.Position == nil || c.Name == "" || c.Note == "" || c.Source == "" {
-			return nil, fmt.Errorf("%s.json: column name %q needs table, after, gap, position, name, note and source", game, c.Name)
+	e := &Edition{Name: game, Constants: c.Constants}
+	for _, k := range n.Columns {
+		if k.Table == "" || k.After == "" || len(k.Gap) == 0 || k.Position == nil || k.Name == "" || k.Note == "" || k.Source == "" {
+			return nil, fmt.Errorf("%s/columns.json: column name %q needs table, after, gap, position, name, note and source", game, k.Name)
 		}
 		e.Columns = append(e.Columns, ColumnName{
-			Table: c.Table, After: c.After, Gap: c.Gap, Position: *c.Position, Name: c.Name,
-			Note:   c.Note,
-			Source: c.Source,
+			Table: k.Table, After: k.After, Gap: k.Gap, Position: *k.Position, Name: k.Name,
+			Note:   k.Note,
+			Source: k.Source,
 		})
 	}
 	return e, nil
+}
+
+func readJSON(game, name string, v any) error {
+	b, err := files.ReadFile(path.Join(game, name))
+	if err != nil {
+		return fmt.Errorf("edition %s: %w", game, err)
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		return fmt.Errorf("%s/%s: %w", game, name, err)
+	}
+	return nil
 }

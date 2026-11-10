@@ -1,11 +1,11 @@
-package tree_test
+package treeexport_test
 
 import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/xaroth/pbt-extract/tree"
+	"github.com/xaroth/pbt-extract/treeexport"
 )
 
 const sample = `{
@@ -26,23 +26,23 @@ const sample = `{
 
 func TestParse(t *testing.T) {
 	t.Parallel()
-	got, err := tree.Parse([]byte(sample))
+	got, err := treeexport.Parse([]byte(sample))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
 	start := 0
-	want := &tree.Export{
+	want := &treeexport.Export{
 		Tree: "Default",
-		Classes: []tree.Class{{
+		Classes: []treeexport.Class{{
 			Name: "Scion", BaseStrength: 20, BaseDexterity: 20, BaseIntelligence: 20,
-			Ascendancies: []tree.Ascendancy{{ID: "Ascendant", Name: "Ascendant"}},
+			Ascendancies: []treeexport.Ascendancy{{ID: "Ascendant", Name: "Ascendant"}},
 		}},
-		AlternateAscendancies: []tree.Ascendancy{{ID: "Aul", Name: "Aul"}},
-		Nodes: map[string]tree.Node{
+		AlternateAscendancies: []treeexport.Ascendancy{{ID: "Aul", Name: "Aul"}},
+		Nodes: map[string]treeexport.Node{
 			"58833": {Skill: 58833, Name: "SEVEN", ClassStartIndex: &start, Out: []string{"4"}, In: []string{}},
 			"4": {
 				Skill: 4, Name: "Mastery", IsMastery: true, Stats: []string{},
-				MasteryEffects: []tree.MasteryEffect{{Effect: 7, Stats: []string{"+1 to Strength"}}},
+				MasteryEffects: []treeexport.MasteryEffect{{Effect: 7, Stats: []string{"+1 to Strength"}}},
 				In:             []string{"58833"},
 			},
 		},
@@ -68,7 +68,7 @@ func TestParseErrors(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := tree.Parse([]byte(testCase.src)); err == nil {
+			if _, err := treeexport.Parse([]byte(testCase.src)); err == nil {
 				t.Errorf("Parse: got nil error, want an error")
 			}
 		})
