@@ -27,7 +27,7 @@ func TestLoad(t *testing.T) {
 
 func TestNameColumns(t *testing.T) {
 	t.Parallel()
-	// QuestStaticRewards with the columns poe1 names left unnamed, as dat-schema has them.
+	// QuestStaticRewards as dat-schema 717d788 defines it for poe1.
 	const quests = `{"name": "QuestStaticRewards", "columns": [
 		{"name": "QuestFlag", "type": "foreignrow"}, {"name": %s, "type": "i32"},
 		{"name": "StatsKeys", "type": "foreignrow", "array": true}, {"name": "StatValues", "type": "i32", "array": true},
@@ -55,7 +55,7 @@ func TestNameColumns(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = e.NameColumns(s)
+			err = s.NameColumns(e.ColumnNames())
 			if (err != nil) != testCase.wantErr {
 				t.Fatalf("NameColumns: got error %v, want error %v", err, testCase.wantErr)
 			}
@@ -63,9 +63,9 @@ func TestNameColumns(t *testing.T) {
 				return
 			}
 			def, _ := s.Table("QuestStaticRewards")
-			for _, c := range e.Columns {
-				if got, ok := def.Column(c.Name); !ok || got != c.Index {
-					t.Errorf("Column(%q): got %d, %v, want %d, true", c.Name, got, ok, c.Index)
+			for name, want := range map[string]int{"PassivePoints": 1, "AscendancyPoints": 5, "RefundPoints": 7, "LeagueReward": 10} {
+				if got, ok := def.Column(name); !ok || got != want {
+					t.Errorf("Column(%q): got %d, %v, want %d, true", name, got, ok, want)
 				}
 			}
 		})

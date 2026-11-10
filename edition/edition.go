@@ -30,38 +30,40 @@ type Constant struct {
 	Source string `json:"source"`
 }
 
-// ColumnName is our name for a column dat-schema leaves unnamed, at Index of Table, with
-// dat-schema type Type.
+// ColumnName is our name for a column dat-schema leaves unnamed, with its note and source.
 type ColumnName struct {
-	Table  string `json:"table"`
-	Index  int    `json:"index"`
-	Type   string `json:"type"`
-	Name   string `json:"name"`
-	Note   string `json:"note"`
-	Source string `json:"source"`
+	dat.ColumnName
+	Note   string
+	Source string
 }
 
-// NameColumns gives the columns of s our names. It fails when dat-schema names one of them or
-// its type differs (see dat.Schema.NameColumn).
-func (e *Edition) NameColumns(s *dat.Schema) error {
-	for _, c := range e.Columns {
-		if err := s.NameColumn(c.Table, c.Index, c.Name, c.Type); err != nil {
-			return fmt.Errorf("edition %s column name %s: %w", e.Name, c.Name, err)
-		}
+// ColumnNames returns the column names of the edition's tables, for dat.Schema.NameColumns.
+func (e *Edition) ColumnNames() []dat.ColumnName {
+	out := make([]dat.ColumnName, len(e.Columns))
+	for i, c := range e.Columns {
+		out[i] = c.ColumnName
 	}
-	return nil
+	return out
 }
 
 // Load returns the edition game from <game>.json. Every constant needs an id, per, note and
-// source; every column name a table, type, name, note and source.
+// source; every column name a table, after, gap, position, name, note and source.
 func Load(game string) (*Edition, error) {
 	b, err := files.ReadFile(game + ".json")
 	if err != nil {
 		return nil, fmt.Errorf("edition %s: %w", game, err)
 	}
 	var f struct {
-		Constants []Constant   `json:"constants"`
-		Columns   []ColumnName `json:"columns"`
+		Constants []Constant `json:"constants"`
+		Columns   []struct {
+			Table    string   `json:"table"`
+			After    string   `json:"after"`
+			Gap      []string `json:"gap"`
+			Position *int     `json:"position"`
+			Name     string   `json:"name"`
+			Note     string   `json:"note"`
+			Source   string   `json:"source"`
+		} `json:"columns"`
 	}
 	if err := json.Unmarshal(b, &f); err != nil {
 		return nil, fmt.Errorf("%s.json: %w", game, err)
@@ -71,10 +73,16 @@ func Load(game string) (*Edition, error) {
 			return nil, fmt.Errorf("%s.json: constant %q needs id, per, note and source", game, c.ID)
 		}
 	}
+	e := &Edition{Name: game, Constants: f.Constants}
 	for _, c := range f.Columns {
-		if c.Table == "" || c.Type == "" || c.Name == "" || c.Note == "" || c.Source == "" {
-			return nil, fmt.Errorf("%s.json: column name %q needs table, type, name, note and source", game, c.Name)
+		if c.Table == "" || c.After == "" || len(c.Gap) == 0 || c.Position == nil || c.Name == "" || c.Note == "" || c.Source == "" {
+			return nil, fmt.Errorf("%s.json: column name %q needs table, after, gap, position, name, note and source", game, c.Name)
 		}
+		e.Columns = append(e.Columns, ColumnName{
+			Table: c.Table, After: c.After, Gap: c.Gap, Position: *c.Position, Name: c.Name,
+			Note:   c.Note,
+			Source: c.Source,
+		})
 	}
-	return &Edition{Name: game, Constants: f.Constants, Columns: f.Columns}, nil
+	return e, nil
 }

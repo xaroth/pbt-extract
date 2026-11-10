@@ -5,6 +5,7 @@ package dat
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 // Schema is a parsed dat-schema build for one game.
@@ -119,27 +120,73 @@ func (t TableDef) Column(name string) (int, bool) {
 	return 0, false
 }
 
-// NameColumn names the unnamed column index of table, which must have type typ. It fails when
-// dat-schema already names the column, so a name of ours is dropped once dat-schema has one,
-// and when the type differs, which is how a column moved by a game patch shows up.
-func (s *Schema) NameColumn(table string, index int, name, typ string) error {
-	t, ok := s.tables[table]
-	if !ok {
-		return fmt.Errorf("table %s not in schema", table)
-	}
-	if index < 0 || index >= len(t.Columns) {
-		return fmt.Errorf("table %s: column %d out of range [0, %d)", table, index, len(t.Columns))
-	}
-	c := &t.Columns[index]
+// Kind returns the column's type as dat-schema writes it: "i32", "[i32]" for a list, "interval
+// i32" for an interval.
+func (c Column) Kind() string {
 	switch {
-	case c.Name != nil:
-		return fmt.Errorf("table %s: column %d is named %s in dat-schema", table, index, *c.Name)
-	case c.Type != typ:
-		return fmt.Errorf("table %s: column %d has type %s, want %s", table, index, c.Type, typ)
+	case c.Array:
+		return "[" + c.Type + "]"
+	case c.Interval:
+		return "interval " + c.Type
 	}
-	if _, taken := t.Column(name); taken {
-		return fmt.Errorf("table %s: column name %s already taken", table, name)
+	return c.Type
+}
+
+// ColumnName is our name for a column dat-schema leaves unnamed. Unnamed columns sit in gaps
+// between named ones, so a column is located by the named column After that starts its gap and
+// its Position (from 0) in that gap; Gap lists the Kind of every column in the gap. Unlike a
+// column index, this holds across patches that add or remove columns elsewhere in the table.
+type ColumnName struct {
+	Table    string
+	After    string
+	Gap      []string
+	Position int
+	Name     string
+}
+
+// NameColumns gives unnamed columns our names. Every column is located before any is named, so
+// on error s is unchanged. It fails when a table or After column is missing, when the gap after
+// After differs from Gap (dat-schema named, added, removed or retyped a column in it), or when
+// a name is taken.
+func (s *Schema) NameColumns(names []ColumnName) error {
+	index := make([]int, len(names))
+	for i, n := range names {
+		var err error
+		if index[i], err = s.locate(n); err != nil {
+			return fmt.Errorf("table %s: column name %s: %w", n.Table, n.Name, err)
+		}
 	}
-	c.Name = &name
+	for i, n := range names {
+		t := s.tables[n.Table]
+		if _, taken := t.Column(n.Name); taken {
+			return fmt.Errorf("table %s: column name %s already taken", n.Table, n.Name)
+		}
+		t.Columns[index[i]].Name = &n.Name
+	}
 	return nil
+}
+
+func (s *Schema) locate(n ColumnName) (int, error) {
+	t, ok := s.tables[n.Table]
+	if !ok {
+		return 0, fmt.Errorf("table not in schema")
+	}
+	after, ok := t.Column(n.After)
+	if !ok {
+		return 0, fmt.Errorf("no column %s", n.After)
+	}
+	if n.Position < 0 || n.Position >= len(n.Gap) {
+		return 0, fmt.Errorf("position %d outside a gap of %d", n.Position, len(n.Gap))
+	}
+	var gap []string
+	for _, c := range t.Columns[after+1:] {
+		if c.Name != nil {
+			break
+		}
+		gap = append(gap, c.Kind())
+	}
+	if !slices.Equal(gap, n.Gap) {
+		return 0, fmt.Errorf("unnamed columns after %s are %v, want %v", n.After, gap, n.Gap)
+	}
+	return after + 1 + n.Position, nil
 }

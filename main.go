@@ -3,7 +3,7 @@
 //	pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>
 //	pbt-extract [-ooz path] bundles <in>
 //	pbt-extract [-ooz path] get <in> <path>
-//	pbt-extract [-ooz path] table <in> <table>
+//	pbt-extract [-ooz path] [-game poe1] table <in> <table>
 //	pbt-extract [-ooz path] stats <in> <object>
 //
 // in is an input directory (see package input): schema.json, the tree export under tree/ and
@@ -11,8 +11,8 @@
 // out.
 // bundles lists the bundle files under in that a dataset build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
-// to stdout. table decodes Data/<table>.datc64 with schema.json and writes one JSON object per
-// row. stats writes the Stats block of an object template such as Metadata/Characters/Str/Str,
+// to stdout. table decodes Data/<table>.datc64 with schema.json, with the -game edition's names
+// for the table's unnamed columns, and writes one JSON object per row. stats writes the Stats block of an object template such as Metadata/Characters/Str/Str,
 // merged over its extends chain, as one JSON object.
 package main
 
@@ -38,7 +38,7 @@ import (
 	"github.com/xaroth/pbt-extract/tree"
 )
 
-const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
+const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -50,7 +50,7 @@ func main() {
 func run(args []string) error {
 	fl := flag.NewFlagSet("pbt-extract", flag.ContinueOnError)
 	oozPath := fl.String("ooz", "", "path to the ooz binary (default: ooz from PATH)")
-	game := fl.String("game", "poe1", "game edition of the input")
+	game := fl.String("game", "poe1", "game edition of the input (dataset, table)")
 	version := fl.String("version", "", "game version of the input, such as 3.29.3.3 (dataset)")
 	if err := fl.Parse(args); err != nil {
 		return err
@@ -117,8 +117,8 @@ func run(args []string) error {
 	return errors.New(usage)
 }
 
-// loadSchema parses schema.json and gives its unnamed columns the edition's names.
-func loadSchema(in input.Dir, ed *edition.Edition) (*dat.Schema, error) {
+// loadSchema parses schema.json and gives its unnamed columns our names.
+func loadSchema(in input.Dir, names []dat.ColumnName) (*dat.Schema, error) {
 	sb, err := in.Schema()
 	if err != nil {
 		return nil, err
@@ -127,14 +127,14 @@ func loadSchema(in input.Dir, ed *edition.Edition) (*dat.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := ed.NameColumns(s); err != nil {
+	if err := s.NameColumns(names); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
 func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in input.Dir, out string) error {
-	schema, err := loadSchema(in, ed)
+	schema, err := loadSchema(in, ed.ColumnNames())
 	if err != nil {
 		return err
 	}
@@ -201,8 +201,15 @@ func writeBundles(a *bundle.Archive) error {
 	return w.Flush()
 }
 
+// writeTable gives only the table's own unnamed columns our names, and prints dat-schema's
+// names with a warning when ours no longer fit: table is how a changed schema gets inspected.
 func writeTable(a *bundle.Archive, ed *edition.Edition, in input.Dir, name string) error {
-	schema, err := loadSchema(in, ed)
+	ours := slices.DeleteFunc(ed.ColumnNames(), func(c dat.ColumnName) bool { return c.Table != name })
+	schema, err := loadSchema(in, ours)
+	if err != nil && len(ours) > 0 {
+		fmt.Fprintf(os.Stderr, "pbt-extract: warning: %v; printing dat-schema's names\n", err)
+		schema, err = loadSchema(in, nil)
+	}
 	if err != nil {
 		return err
 	}
