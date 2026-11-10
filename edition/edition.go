@@ -81,9 +81,9 @@ func Load(game string) (*Edition, error) {
 			return nil, fmt.Errorf("%s/columns.json: column name %q needs table, after, gap, position, name, note and source", game, k.Name)
 		}
 		e.Columns = append(e.Columns, ColumnName{
-			ColumnName: dat.ColumnName{Table: k.Table, After: k.After, Gap: k.Gap, Position: *k.Position, Name: k.Name},
-			Note:       k.Note,
-			Source:     k.Source,
+			Table: k.Table, After: k.After, Gap: k.Gap, Position: *k.Position, Name: k.Name,
+			Note:   k.Note,
+			Source: k.Source,
 		})
 	}
 	return e, nil
