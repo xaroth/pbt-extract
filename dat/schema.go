@@ -118,3 +118,28 @@ func (t TableDef) Column(name string) (int, bool) {
 	}
 	return 0, false
 }
+
+// NameColumn names the unnamed column index of table, which must have type typ. It fails when
+// dat-schema already names the column, so a name of ours is dropped once dat-schema has one,
+// and when the type differs, which is how a column moved by a game patch shows up.
+func (s *Schema) NameColumn(table string, index int, name, typ string) error {
+	t, ok := s.tables[table]
+	if !ok {
+		return fmt.Errorf("table %s not in schema", table)
+	}
+	if index < 0 || index >= len(t.Columns) {
+		return fmt.Errorf("table %s: column %d out of range [0, %d)", table, index, len(t.Columns))
+	}
+	c := &t.Columns[index]
+	switch {
+	case c.Name != nil:
+		return fmt.Errorf("table %s: column %d is named %s in dat-schema", table, index, *c.Name)
+	case c.Type != typ:
+		return fmt.Errorf("table %s: column %d has type %s, want %s", table, index, c.Type, typ)
+	}
+	if _, taken := t.Column(name); taken {
+		return fmt.Errorf("table %s: column name %s already taken", table, name)
+	}
+	c.Name = &name
+	return nil
+}

@@ -79,7 +79,11 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return writeTable(a, input.Dir(cmd[1]), cmd[2])
+		ed, err := edition.Load(*game)
+		if err != nil {
+			return err
+		}
+		return writeTable(a, ed, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "stats" && len(cmd) == 3:
 		a, err := open()
 		if err != nil {
@@ -98,7 +102,11 @@ func run(args []string) error {
 		if *version == "" {
 			return errors.New("dataset needs -version")
 		}
-		return writeDataset(a, *game, *version, input.Dir(cmd[1]), cmd[2])
+		ed, err := edition.Load(*game)
+		if err != nil {
+			return err
+		}
+		return writeDataset(a, ed, *version, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "bundles" && len(cmd) == 2:
 		a, err := open()
 		if err != nil {
@@ -109,16 +117,24 @@ func run(args []string) error {
 	return errors.New(usage)
 }
 
-func loadSchema(in input.Dir) (*dat.Schema, error) {
+// loadSchema parses schema.json and gives its unnamed columns the edition's names.
+func loadSchema(in input.Dir, ed *edition.Edition) (*dat.Schema, error) {
 	sb, err := in.Schema()
 	if err != nil {
 		return nil, err
 	}
-	return dat.ParseSchema(sb)
+	s, err := dat.ParseSchema(sb)
+	if err != nil {
+		return nil, err
+	}
+	if err := ed.NameColumns(s); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
-func writeDataset(a *bundle.Archive, game, version string, in input.Dir, out string) error {
-	schema, err := loadSchema(in)
+func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in input.Dir, out string) error {
+	schema, err := loadSchema(in, ed)
 	if err != nil {
 		return err
 	}
@@ -143,10 +159,6 @@ func writeDataset(a *bundle.Archive, game, version string, in input.Dir, out str
 		}
 		bi.Trees = append(bi.Trees, build.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
-	ed, err := edition.Load(game)
-	if err != nil {
-		return err
-	}
 	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}
@@ -154,7 +166,7 @@ func writeDataset(a *bundle.Archive, game, version string, in input.Dir, out str
 	if err != nil {
 		return err
 	}
-	d.Manifest = dataset.Manifest{Game: game, Version: version}
+	d.Manifest = dataset.Manifest{Game: ed.Name, Version: version}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -189,8 +201,8 @@ func writeBundles(a *bundle.Archive) error {
 	return w.Flush()
 }
 
-func writeTable(a *bundle.Archive, in input.Dir, name string) error {
-	schema, err := loadSchema(in)
+func writeTable(a *bundle.Archive, ed *edition.Edition, in input.Dir, name string) error {
+	schema, err := loadSchema(in, ed)
 	if err != nil {
 		return err
 	}

@@ -232,3 +232,40 @@ func TestColumn(t *testing.T) {
 		})
 	}
 }
+
+func TestNameColumn(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name, table string
+		index       int
+		col, typ    string
+		wantErr     bool
+	}{
+		{name: "unnamed column", table: "T", index: 13, col: "Count", typ: "array"},
+		{name: "unknown table", table: "X", index: 13, col: "Count", typ: "array", wantErr: true},
+		{name: "index out of range", table: "T", index: 99, col: "Count", typ: "array", wantErr: true},
+		{name: "named by dat-schema", table: "T", index: 0, col: "Key", typ: "string", wantErr: true},
+		{name: "type differs", table: "T", index: 13, col: "Count", typ: "i32", wantErr: true},
+		{name: "name taken", table: "T", index: 13, col: "Id", typ: "array", wantErr: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s, err := dat.ParseSchema([]byte(schemaJSON))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = s.NameColumn(testCase.table, testCase.index, testCase.col, testCase.typ)
+			if (err != nil) != testCase.wantErr {
+				t.Fatalf("NameColumn: got error %v, want error %v", err, testCase.wantErr)
+			}
+			if testCase.wantErr {
+				return
+			}
+			def, _ := s.Table(testCase.table)
+			if got, ok := def.Column(testCase.col); !ok || got != testCase.index {
+				t.Errorf("Column(%q): got %d, %v, want %d, true", testCase.col, got, ok, testCase.index)
+			}
+		})
+	}
+}
