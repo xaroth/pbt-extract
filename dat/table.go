@@ -73,7 +73,9 @@ func (t *Table) Len() int { return t.rowCount }
 func (t *Table) Def() TableDef { return t.def }
 
 // Value decodes one cell. Scalars decode to bool, int16, uint16, int32, uint32, float32 or
-// string; row and foreignrow to an int row index, or nil when empty; enumrow to uint32;
+// string; row and foreignrow to an int row index, or nil when empty. A row reference past the
+// table's end, or any reference above 2^31-1, is an error; whether a foreignrow index is inside
+// the referenced table is the caller's check, as only it reads that table; enumrow to uint32;
 // intervals to a two-element array of the scalar type; lists to a slice of those values.
 // A list of unknown element type decodes to its element count as an int.
 func (t *Table) Value(row, col int) (any, error) {
@@ -139,8 +141,14 @@ func (t *Table) scalar(typ string, b []byte) (any, error) {
 		return le.Uint32(b), nil
 	case "row", "foreignrow":
 		v := le.Uint64(b)
-		if v == nullRef {
+		switch {
+		case v == nullRef:
 			return nil, nil
+		case typ == "row" && v >= uint64(t.rowCount):
+			return nil, fmt.Errorf("row reference %d outside table of %d rows", v, t.rowCount)
+		case v > math.MaxInt32:
+			// No table has 2^31 rows; a larger value is corrupt data, not a row.
+			return nil, fmt.Errorf("row reference %#x out of range", v)
 		}
 		return int(v), nil
 	case "string":

@@ -166,6 +166,9 @@ func TestValueErrors(t *testing.T) {
 		{"string offset past end", corrupt(0, 1<<40, 0), 0, 0},
 		{"list past end", corrupt(11, 8, 1<<20), 0, 11},
 		{"row out of range", corrupt(0, 8, 0), 1, 0},
+		{"row reference past the table", corrupt(7, 1, 0), 0, 7},
+		{"foreignrow reference above 2^31-1", corrupt(8, 1<<31, 0), 0, 8},
+		{"foreignrow reference with the top bit set", corrupt(8, 1<<63, 0), 0, 8},
 		{"column out of range", corrupt(0, 8, 0), 0, 14},
 	}
 	for _, testCase := range testCases {
