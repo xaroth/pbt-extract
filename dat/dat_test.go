@@ -1,15 +1,15 @@
 package dat_test
 
 import (
-	"bytes"
 	"encoding/binary"
-	"math"
+	"slices"
 	"strings"
 	"testing"
-	"unicode/utf16"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/xaroth/pbt-extract/dat"
+	"github.com/xaroth/pbt-extract/dat/dattest"
 )
 
 const schemaJSON = `{"version": 7, "tables": [{"name": "T", "columns": [
@@ -32,61 +32,11 @@ const schemaJSON = `{"version": 7, "tables": [{"name": "T", "columns": [
 // rowSize of table T: 8+1+2+2+4+4+4+8+16+4+8+16+16+16.
 const rowSize = 109
 
-type tableBuilder struct {
-	fixed, vars []byte
-}
-
-func newTableBuilder() *tableBuilder {
-	return &tableBuilder{vars: bytes.Repeat([]byte{0xbb}, 8)}
-}
-
-func (b *tableBuilder) str(s string) uint64 {
-	off := uint64(len(b.vars))
-	for _, u := range utf16.Encode([]rune(s)) {
-		b.vars = binary.LittleEndian.AppendUint16(b.vars, u)
-	}
-	b.vars = append(b.vars, 0, 0, 0, 0)
-	return off
-}
-
-func (b *tableBuilder) row(id, name1, name2 string, self, other uint64, ints ...int32) {
-	le := binary.LittleEndian
-	idOff := b.str(id)
-	n1, n2 := b.str(name1), b.str(name2)
-	intsOff := uint64(len(b.vars))
-	for _, v := range ints {
-		b.vars = le.AppendUint32(b.vars, uint32(v))
-	}
-	namesOff := uint64(len(b.vars))
-	b.vars = le.AppendUint64(b.vars, n1)
-	b.vars = le.AppendUint64(b.vars, n2)
-
-	r := le.AppendUint64(nil, idOff)
-	r = append(r, 1)
-	r = le.AppendUint16(r, uint16(0xfffe)) // -2 as i16
-	r = le.AppendUint16(r, 65000)
-	r = le.AppendUint32(r, uint32(0xfffffff9)) // -7 as i32
-	r = le.AppendUint32(r, 4000000000)
-	r = le.AppendUint32(r, math.Float32bits(1.5))
-	r = le.AppendUint64(r, self)
-	r = le.AppendUint64(r, other)
-	r = le.AppendUint64(r, 0)
-	r = le.AppendUint32(r, 3)
-	r = le.AppendUint32(r, 10)
-	r = le.AppendUint32(r, 20)
-	r = le.AppendUint64(r, uint64(len(ints)))
-	r = le.AppendUint64(r, intsOff)
-	r = le.AppendUint64(r, 2)
-	r = le.AppendUint64(r, namesOff)
-	r = le.AppendUint64(r, 5)
-	r = le.AppendUint64(r, 0)
-	b.fixed = append(b.fixed, r...)
-}
-
-func (b *tableBuilder) bytes(rows int) []byte {
-	out := binary.LittleEndian.AppendUint32(nil, uint32(rows))
-	out = append(out, b.fixed...)
-	return append(out, b.vars...)
+// row is a row of table T with the given strings, references and i32 list; the other cells
+// are fixed.
+func row(id, name1, name2 string, self, other int, ints ...int32) []any {
+	return []any{id, true, int16(-2), uint16(65000), int32(-7), uint32(4000000000), float32(1.5),
+		self, other, uint32(3), [2]int32{10, 20}, ints, []string{name1, name2}, 5}
 }
 
 func tableDef(t *testing.T) dat.TableDef {
@@ -108,10 +58,8 @@ func TestRead(t *testing.T) {
 	if got := def.RowSize(); got != rowSize {
 		t.Fatalf("got row size %d, want %d", got, rowSize)
 	}
-	b := newTableBuilder()
-	b.row("first", "a", "Ünïcödé", 1, 0xfefefefefefefefe, 1, -2, 3)
-	b.row("second", "", "x", 0xfefefefefefefefe, 7)
-	tbl, err := dat.Read(def, b.bytes(2))
+	b := dattest.Encode(t, def, row("first", "a", "Ünïcödé", 1, dattest.Null, 1, -2, 3), row("second", "", "x", dattest.Null, 7))
+	tbl, err := dat.Read(def, b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +106,8 @@ func TestRead(t *testing.T) {
 
 func TestReadEmptyTable(t *testing.T) {
 	t.Parallel()
-	tbl, err := dat.Read(tableDef(t), newTableBuilder().bytes(0))
+	def := tableDef(t)
+	tbl, err := dat.Read(def, dattest.Encode(t, def))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,11 +119,8 @@ func TestReadEmptyTable(t *testing.T) {
 func TestReadErrors(t *testing.T) {
 	t.Parallel()
 	def := tableDef(t)
-	b := newTableBuilder()
-	b.row("id", "a", "b", 0, 0)
-	good := b.bytes(1)
-	wider := append(append(binary.LittleEndian.AppendUint32(nil, 1), b.fixed...), 0, 0, 0, 0)
-	wider = append(wider, b.vars...)
+	good := dattest.Encode(t, def, row("id", "a", "b", 0, 0))
+	wider := slices.Insert(slices.Clone(good), 4+rowSize, 0, 0, 0, 0)
 
 	testCases := []struct {
 		name    string
@@ -201,16 +147,15 @@ func TestValueErrors(t *testing.T) {
 	def := tableDef(t)
 	le := binary.LittleEndian
 	corrupt := func(col int, off uint64, count uint64) []byte {
-		b := newTableBuilder()
-		b.row("id", "a", "b", 0, 0)
-		cell := b.fixed[colOffset(t, def, col):]
+		b := dattest.Encode(t, def, row("id", "a", "b", 0, 0))
+		cell := b[4+colOffset(t, def, col):]
 		if def.Columns[col].Array {
 			le.PutUint64(cell, count)
 			le.PutUint64(cell[8:], off)
 		} else {
 			le.PutUint64(cell, off)
 		}
-		return b.bytes(1)
+		return b
 	}
 	testCases := []struct {
 		name     string
