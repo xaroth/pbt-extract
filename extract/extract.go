@@ -81,6 +81,11 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	if d.Quests, err = quests(r, schema, len(d.Stats)); err != nil {
 		return nil, err
 	}
+	var names itemNames
+	if d.Items, d.Mods, names, err = items(r, schema, len(d.Stats)); err != nil {
+		return nil, err
+	}
+	text.ItemClassNames, text.BaseNames, text.ModNames = names.classes, names.bases, names.mods
 	if len(in.Trees) > 0 {
 		tt, err := readTreeTables(r, schema, d.Stats)
 		if err != nil {

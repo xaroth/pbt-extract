@@ -59,7 +59,7 @@ const schemaJSON = `{"version": 7, "tables": [
 		{"name": "StatValuesHardmode", "type": "i32", "array": true}, {"name": "ClientStringHardmode", "type": "foreignrow"},
 		{"name": "LeagueReward", "type": "bool"}]},
 	{"name": "QuestFlags", "columns": [{"name": "Id", "type": "string"}]},
-	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]}
+	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]},` + itemTables + `
 ]}`
 
 // encode encodes rows as Data/<table>.datc64 of the test schema.
@@ -173,6 +173,7 @@ func game(t *testing.T) fstest.MapFS {
 	for _, f := range extract.SkillDescriptions() {
 		g[f] = &fstest.MapFile{Data: utf16le("include \"" + sdDir + "stat_descriptions.txt\"\n")}
 	}
+	itemGame(t, g)
 	return g
 }
 
@@ -264,7 +265,12 @@ func TestDataset(t *testing.T) {
 			},
 		}},
 	}
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(dataset.Text{}, "Descriptions"), cmpopts.EquateEmpty()); diff != "" {
+	// TestItems checks the items group.
+	ignore := cmp.Options{
+		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames"),
+		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods"),
+	}
+	if diff := cmp.Diff(want, got, ignore, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)
 	}
 	var scopes []string
