@@ -1,7 +1,9 @@
 package extract
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
@@ -48,6 +50,8 @@ type baseRow struct {
 	Name      string    `dat:"Name"`
 	Implicits []dat.Ref `dat:"Implicit_ModsKeys" ref:"Mods"`
 	Tags      []dat.Ref `dat:"TagsKeys" ref:"Tags"`
+	// Template is the item template (.it) the base extends.
+	Template string `dat:"InheritsFrom"`
 }
 
 type armourRow struct {
@@ -196,7 +200,8 @@ type itemNames struct {
 }
 
 // items reads the items group: the classes in itemClasses with their bases and their values,
-// and the mods of modDomains. All are in table order. nStats is the number of rows in Stats.
+// and the mods of modDomains. All are in table order. A base's tags are its own, then those of
+// its item template chain (see ot.ItemTags). nStats is the number of rows in Stats.
 func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
 	tags, err := readIDs(r, s, "Tags")
@@ -222,6 +227,7 @@ func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mo
 			names.classes = append(names.classes, dataset.Name{ID: c.ID, Name: c.Name})
 		}
 	}
+	templateTags := templateTagger(r, it.Tags)
 	kept := map[int]int{} // BaseItemTypes row to index in it.Bases
 	for row, b := range bases {
 		base, keep, err := itemBase(b, classes, it.Tags, modIDs)
@@ -230,6 +236,15 @@ func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mo
 		}
 		if !keep {
 			continue
+		}
+		inherited, err := templateTags(b.Template)
+		if err != nil {
+			return nil, nil, names, fmt.Errorf("table BaseItemTypes row %d: %w", row, err)
+		}
+		for _, tag := range inherited {
+			if !slices.Contains(base.Tags, tag) {
+				base.Tags = append(base.Tags, tag)
+			}
 		}
 		kept[row] = len(it.Bases)
 		it.Bases = append(it.Bases, base)
@@ -266,6 +281,35 @@ func itemBase(b baseRow, classes []itemClassRow, tags []string, modIDs map[int]s
 		return base, false, err
 	}
 	return base, true, nil
+}
+
+// templateTagger returns a function giving the tags a base inherits from the item template at a
+// path, which must all be in tags. It reads each template once.
+func templateTagger(r ot.Reader, tags []string) func(string) ([]string, error) {
+	known := map[string]bool{}
+	for _, t := range tags {
+		known[t] = true
+	}
+	byPath := map[string][]string{}
+	return func(path string) ([]string, error) {
+		if path == "" {
+			return nil, errors.New("no item template")
+		}
+		if t, ok := byPath[path]; ok {
+			return t, nil
+		}
+		t, err := ot.ItemTags(r, path)
+		if err != nil {
+			return nil, fmt.Errorf("item template %s: %w", path, err)
+		}
+		for _, tag := range t {
+			if !known[tag] {
+				return nil, fmt.Errorf("item template %s: tag %q is not in Tags", path, tag)
+			}
+		}
+		byPath[path] = t
+		return t, nil
+	}
 }
 
 // baseValues sets the armour, shield, weapon and flask values of bases. kept maps a

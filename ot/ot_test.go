@@ -132,3 +132,39 @@ func TestStats(t *testing.T) {
 		})
 	}
 }
+
+func TestItemTags(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{
+		"Metadata/Item.it":      {Data: encode("abstract\nextends \"nothing\"\nBase\n{\n\tbase_level = 1\n\ttag = \"default\"\n}\n")},
+		"Metadata/Equipment.it": {Data: encode("extends \"Metadata/Item\"\nSockets { }\n")},
+		"Metadata/Weapon.it":    {Data: encode("extends \"Metadata/Equipment\"\nBase\n{\n\ttag = \"weapon\"\n}\n")},
+		"Metadata/Rod.it": {Data: encode("extends \"Metadata/Weapon\"\nBase\n{\n\tremove_tag = \"weapon\"\n" +
+			"\ttag = \"fishing_rod\"\n\ttag = \"default\"\n}\n")},
+		"Metadata/Missing.it": {Data: encode("extends \"Metadata/Nope\"\n")},
+	}
+	testCases := []struct {
+		name string
+		path string
+		want []string
+	}{
+		{name: "no tags of its own", path: "Metadata/Equipment", want: []string{"default"}},
+		{name: "nearest first", path: "Metadata/Weapon", want: []string{"weapon", "default"}},
+		{name: "removed and repeated tags", path: "Metadata/Rod", want: []string{"fishing_rod", "default"}},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ot.ItemTags(fsys, testCase.path)
+			if err != nil {
+				t.Fatalf("ItemTags(%s): %v", testCase.path, err)
+			}
+			if diff := cmp.Diff(testCase.want, got); diff != "" {
+				t.Errorf("ItemTags(%s) mismatch (-want +got):\n%s", testCase.path, diff)
+			}
+		})
+	}
+	if _, err := ot.ItemTags(fsys, "Metadata/Missing"); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("ItemTags(Missing): got %v, want fs.ErrNotExist", err)
+	}
+}
