@@ -22,4 +22,9 @@ func TestReads(t *testing.T) {
 			t.Errorf("Reads(%q) = %v, want %v", path, got, want)
 		}
 	}
+	for _, path := range append([]string{extract.DescriptionsRoot}, extract.SkillDescriptions()...) {
+		if !extract.Reads(path) {
+			t.Errorf("Reads(%q) = false, want true", path)
+		}
+	}
 }

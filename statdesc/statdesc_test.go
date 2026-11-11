@@ -39,7 +39,23 @@ const sample = "include \"Metadata/StatDescriptions/base.txt\"\r\n\t\t\r\nhas_id
 	"description named_one\r\n" +
 	"\t2 min_fire max_fire\r\n" +
 	"\t1\r\n" +
-	"\t\t# !0 \"Adds {0} to {1} Fire Damage\" canonical_line divide_by_ten_0dp 2\r\n"
+	"\t\t# !0 \"Adds {0} to {1} Fire Damage\" canonical_line divide_by_ten_0dp 2\r\n" +
+	"\r\n" +
+	"handed_description weapon_fire_damage_range\r\n" +
+	"\t2\r\n" +
+	"main_hand_min_fire main_hand_max_fire\r\n" +
+	"\t\toff_hand_min_fire off_hand_max_fire\r\n" +
+	"\t1\r\n" +
+	"\t\t# # \"{0} to {1} Fire Damage\"\r\n" +
+	"\tlang \"French\"\r\n" +
+	"\t1\r\n" +
+	"\t\t# # \"{0} à {1}\"\r\n" +
+	"\r\n" +
+	"description\r\n" +
+	"\t1 buff_duration_ms\r\n" +
+	"\t2\r\n" +
+	"\t\t# gem_quality \"Buff lasts {0:+d} seconds\" milliseconds_to_seconds 1\r\n" +
+	"\t\t# \"Buff lasts {0} seconds\" milliseconds_to_seconds 1\r\n"
 
 func TestParse(t *testing.T) {
 	t.Parallel()
@@ -48,6 +64,7 @@ func TestParse(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 	anyValue := statdesc.Limit{Min: math.MinInt32, Max: math.MaxInt32}
+	fireRange := []statdesc.Variant{{Limits: []statdesc.Limit{anyValue, anyValue}, Text: "{0} to {1} Fire Damage"}}
 	want := statdesc.Scope{
 		Name:   "child.txt",
 		Parent: "Metadata/StatDescriptions/base.txt",
@@ -76,6 +93,18 @@ func TestParse(t *testing.T) {
 					Handlers: []statdesc.Handler{{Name: "canonical_line"}, {Name: "divide_by_ten_0dp", Stat: 1}},
 				}},
 			},
+			// a handed description gives one description per hand
+			{Stats: []string{"main_hand_min_fire", "main_hand_max_fire"}, Variants: fireRange},
+			{Stats: []string{"off_hand_min_fire", "off_hand_max_fire"}, Variants: fireRange},
+			// the gem_quality variant is left out
+			{
+				Stats: []string{"buff_duration_ms"},
+				Variants: []statdesc.Variant{{
+					Limits:   []statdesc.Limit{anyValue},
+					Text:     "Buff lasts {0} seconds",
+					Handlers: []statdesc.Handler{{Name: "milliseconds_to_seconds"}},
+				}},
+			},
 		},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -92,7 +121,12 @@ func TestParseErrors(t *testing.T) {
 		{name: "odd length", src: []byte{0xff, 0xfe, 0x41}},
 		{name: "second include", src: encode("include \"a\"\ninclude \"b\"\n")},
 		{name: "unquoted include", src: encode("include a\n")},
-		{name: "unknown directive", src: encode("handed_description\n")},
+		{name: "unknown directive", src: encode("footed_description\n")},
+		{name: "handed without stat count", src: encode("handed_description x\n")},
+		{name: "handed stat count line", src: encode("handed_description x\n\t2 a b\n")},
+		{name: "handed hand stat count", src: encode("handed_description x\n\t2\na b\n\tc\n\t1\n\t\t# # \"x\"\n")},
+		{name: "handed bad variants", src: encode("handed_description x\n\t1\na\n\tb\n\t1\n\t\t# # \"x\"\n")},
+		{name: "gem_quality before limits", src: encode("description\n\t1 a\n\t1\n\t\tgem_quality # \"x\"\n")},
 		{name: "no_description without stat", src: encode("no_description\n")},
 		{name: "stat count mismatch", src: encode("description\n\t2 a\n\t1\n\t\t# # \"x\"\n")},
 		{name: "bad variant count", src: encode("description\n\t1 a\n\tx\n")},
@@ -118,21 +152,32 @@ func TestLoad(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{
 		"child.txt":  {Data: encode("include \"base.txt\"\n")},
+		"other.txt":  {Data: encode("include \"child.txt\"\n")},
 		"base.txt":   {Data: encode("no_description x\n")},
 		"loop.txt":   {Data: encode("include \"loop.txt\"\n")},
 		"orphan.txt": {Data: encode("include \"gone.txt\"\n")},
 		"broken.txt": {Data: encode("description\n")},
 	}
-	got, err := parser.Load(fsys, "child.txt")
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	var names []string
-	for _, s := range got {
-		names = append(names, s.Name)
-	}
-	if diff := cmp.Diff([]string{"child.txt", "base.txt"}, names); diff != "" {
-		t.Errorf("Load scopes mismatch (-want +got):\n%s", diff)
+	for _, c := range []struct {
+		paths []string
+		want  []string
+	}{
+		{[]string{"child.txt"}, []string{"child.txt", "base.txt"}},
+		// a file reached twice is loaded once
+		{[]string{"child.txt", "other.txt", "base.txt"}, []string{"child.txt", "base.txt", "other.txt"}},
+		{[]string{"other.txt", "child.txt"}, []string{"other.txt", "child.txt", "base.txt"}},
+	} {
+		got, err := parser.Load(fsys, c.paths...)
+		if err != nil {
+			t.Fatalf("Load(%v): %v", c.paths, err)
+		}
+		var names []string
+		for _, s := range got {
+			names = append(names, s.Name)
+		}
+		if diff := cmp.Diff(c.want, names); diff != "" {
+			t.Errorf("Load(%v) scopes mismatch (-want +got):\n%s", c.paths, diff)
+		}
 	}
 
 	testCases := []struct {

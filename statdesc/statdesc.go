@@ -15,25 +15,32 @@ import (
 	"github.com/xaroth/pbt-extract/ot"
 )
 
-// Load parses the file at path and the files it includes. The scope for path comes first.
-func Load(r ot.Reader, path string) ([]statdesc.Scope, error) {
+// Load parses the files at paths and the files they include, each file once, in the order
+// they are first reached: a file comes before the files it includes.
+func Load(r ot.Reader, paths ...string) ([]statdesc.Scope, error) {
 	var out []statdesc.Scope
-	seen := map[string]bool{}
-	for p := path; p != ""; {
-		if seen[p] {
-			return nil, fmt.Errorf("%s: include cycle", p)
+	loaded := map[string]bool{}
+	for _, root := range paths {
+		chain := map[string]bool{}
+		for p := root; p != "" && !loaded[p]; {
+			if chain[p] {
+				return nil, fmt.Errorf("%s: include cycle", p)
+			}
+			chain[p] = true
+			b, err := r.ReadFile(p)
+			if err != nil {
+				return nil, err
+			}
+			sc, err := Parse(p, b)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, sc)
+			p = sc.Parent
 		}
-		seen[p] = true
-		b, err := r.ReadFile(p)
-		if err != nil {
-			return nil, err
+		for p := range chain {
+			loaded[p] = true
 		}
-		sc, err := Parse(p, b)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, sc)
-		p = sc.Parent
 	}
 	return out, nil
 }
@@ -108,6 +115,12 @@ func (p *parser) scope(name string) (statdesc.Scope, error) {
 				return sc, err
 			}
 			sc.Descriptions = append(sc.Descriptions, d)
+		case "handed_description":
+			ds, err := p.handed()
+			if err != nil {
+				return sc, err
+			}
+			sc.Descriptions = append(sc.Descriptions, ds...)
 		default:
 			return sc, fmt.Errorf("unexpected %q", f[0])
 		}
@@ -123,33 +136,62 @@ func (p *parser) description() (statdesc.Description, error) {
 		return d, fmt.Errorf("stat line %q", strings.Join(f, " "))
 	}
 	d.Stats = f[1:]
+	d.Variants, err = p.variants(n)
+	return d, err
+}
 
+// handed reads a handed_description: a stat count, a main hand and an off hand stat line, and
+// one set of variants for both. Each hand becomes a description of its own.
+func (p *parser) handed() ([]statdesc.Description, error) {
+	f := p.next()
+	n, err := count(f)
+	if err != nil || len(f) != 1 {
+		return nil, fmt.Errorf("stat count %q", strings.Join(f, " "))
+	}
+	var hands [2][]string
+	for i := range hands {
+		if hands[i] = p.next(); len(hands[i]) != n {
+			return nil, fmt.Errorf("hand stat line %q", strings.Join(hands[i], " "))
+		}
+	}
+	variants, err := p.variants(n)
+	if err != nil {
+		return nil, err
+	}
+	return []statdesc.Description{
+		{Stats: hands[0], Variants: variants},
+		{Stats: hands[1], Variants: variants},
+	}, nil
+}
+
+// variants reads the English variants for n stats and skips the other languages.
+func (p *parser) variants(n int) ([]statdesc.Variant, error) {
 	variants, err := p.block(n, true)
 	if err != nil {
-		return d, err
+		return nil, err
 	}
-	d.Variants = variants
 	// Other languages follow as lang "X" blocks. They are skipped unparsed; they contain
 	// typos the English lines do not.
 	for f := p.peek(); f != nil && f[0] == "lang"; f = p.peek() {
 		p.next()
 		if _, err := p.block(n, false); err != nil {
-			return d, err
+			return nil, err
 		}
 	}
-	return d, nil
+	return variants, nil
 }
 
 // block reads a variant count line and that many variant lines for n stats. Without parse the
-// lines are only skipped.
+// lines are only skipped. Variants marked gem_quality are left out: they describe the part of a
+// stat that comes from gem quality, a condition scopes have no way to state.
 func (p *parser) block(n int, parse bool) ([]statdesc.Variant, error) {
 	f := p.next()
 	k, err := count(f)
 	if err != nil || len(f) != 1 {
 		return nil, fmt.Errorf("variant count %q", strings.Join(f, " "))
 	}
-	out := make([]statdesc.Variant, k)
-	for i := range out {
+	out := make([]statdesc.Variant, 0, k)
+	for range k {
 		if p.pos >= len(p.lines) {
 			return nil, errors.New("unexpected end of file")
 		}
@@ -157,30 +199,37 @@ func (p *parser) block(n int, parse bool) ([]statdesc.Variant, error) {
 		if !parse {
 			continue
 		}
-		if out[i], err = variant(p.lines[p.pos-1], n); err != nil {
+		v, quality, err := variant(p.lines[p.pos-1], n)
+		if err != nil {
 			return nil, err
+		}
+		if !quality {
+			out = append(out, v)
 		}
 	}
 	return out, nil
 }
 
-func variant(line string, n int) (statdesc.Variant, error) {
-	var v statdesc.Variant
+// variant parses a variant line for n stats and reports whether it is marked gem_quality.
+func variant(line string, n int) (v statdesc.Variant, quality bool, err error) {
 	open := strings.IndexByte(line, '"')
 	end := strings.LastIndexByte(line, '"')
 	if open < 0 || end == open {
-		return v, fmt.Errorf("variant without text: %q", line)
+		return v, false, fmt.Errorf("variant without text: %q", line)
 	}
 	v.Text = line[open+1 : end]
 
 	lims := strings.Fields(line[:open])
+	if len(lims) == n+1 && lims[n] == "gem_quality" {
+		lims, quality = lims[:n], true
+	}
 	if len(lims) != n {
-		return v, fmt.Errorf("%d limits for %d stats: %q", len(lims), n, line)
+		return v, false, fmt.Errorf("%d limits for %d stats: %q", len(lims), n, line)
 	}
 	for _, l := range lims {
 		lim, err := limit(l)
 		if err != nil {
-			return v, err
+			return v, false, err
 		}
 		v.Limits = append(v.Limits, lim)
 	}
@@ -193,7 +242,7 @@ func variant(line string, n int) (statdesc.Variant, error) {
 		} else if i+1 < len(hs) {
 			if idx, err := strconv.Atoi(hs[i+1]); err == nil {
 				if idx < 1 || idx > n {
-					return v, fmt.Errorf("handler %s stat %d out of range: %q", h.Name, idx, line)
+					return v, false, fmt.Errorf("handler %s stat %d out of range: %q", h.Name, idx, line)
 				}
 				h.Stat = idx - 1
 				i++
@@ -201,7 +250,7 @@ func variant(line string, n int) (statdesc.Variant, error) {
 		}
 		v.Handlers = append(v.Handlers, h)
 	}
-	return v, nil
+	return v, quality, nil
 }
 
 func limit(s string) (statdesc.Limit, error) {
