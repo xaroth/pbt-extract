@@ -20,6 +20,9 @@ func TestLoad(t *testing.T) {
 	if len(e.Constants) == 0 {
 		t.Error("got no constants, want the poe1 constants")
 	}
+	if len(e.Totems) == 0 {
+		t.Error("got no totems, want the poe1 totems")
+	}
 	if _, err := edition.Load("nope"); err == nil {
 		t.Error("Load(nope): got nil error, want an error")
 	}

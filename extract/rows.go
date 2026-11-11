@@ -1,7 +1,11 @@
 package extract
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
+
+	"github.com/xaroth/pbt-engine/dataset"
 
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/ot"
@@ -83,4 +87,39 @@ func statHandles(refs []dat.Ref, nStats int) ([]uint32, error) {
 		out = append(out, uint32(row))
 	}
 	return out, nil
+}
+
+// templateStats returns the Stats block of the object template at path, merged over its
+// extends chain, as stat handles sorted by stat. handles maps stat ids to handles.
+func templateStats(r ot.Reader, path string, handles map[string]uint32) ([]dataset.StatValue, error) {
+	stats, err := ot.Stats(r, path)
+	if err != nil {
+		return nil, err
+	}
+	var out []dataset.StatValue
+	for id, v := range stats {
+		h, ok := handles[id]
+		if !ok {
+			return nil, fmt.Errorf("%s.ot: stat %s not in Stats", path, id)
+		}
+		if int(int32(v)) != v {
+			return nil, fmt.Errorf("%s.ot: stat %s value %d overflows int32", path, id, v)
+		}
+		out = append(out, dataset.StatValue{Stat: h, Value: int32(v)})
+	}
+	slices.SortFunc(out, func(a, b dataset.StatValue) int { return cmp.Compare(a.Stat, b.Stat) })
+	return out, nil
+}
+
+// optionalStat returns the stat handle ref references, Stats rows in a table of nStats rows, or
+// nil for a null reference.
+func optionalStat(ref dat.Ref, nStats int) (*uint32, error) {
+	if _, ok := ref.Row(); !ok {
+		return nil, nil
+	}
+	hs, err := statHandles([]dat.Ref{ref}, nStats)
+	if err != nil {
+		return nil, err
+	}
+	return &hs[0], nil
 }
