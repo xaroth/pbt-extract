@@ -111,6 +111,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 			text.NodeNames = append(text.NodeNames, dataset.NodeName{ID: id, Name: nodeNames[id]})
 		}
 	}
+	if d.Buffs, text.BuffNames, err = buffs(r, schema, len(d.Stats), d.Items); err != nil {
+		return nil, err
+	}
 	d.Texts = []dataset.Text{text}
 	return d, nil
 }
