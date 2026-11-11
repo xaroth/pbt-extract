@@ -6,7 +6,7 @@
       "until": "3.27",
       "map": {"1": 1, "2": 2, "3": 3, "4": 5},
       "note": "Up to 3.27 the game numbers gem styles 1 transfigured X, 2 transfigured Y, 3 Trarthan, 4 default. 3.28 added exceptional gems as 4 and moved default to 5, the GemStyles enumeration of dat-schema 717d788. 3.27.0.10 has no exceptional gems.",
-      "source": "Our reading of GemEffects in 3.27.0.10 and 3.28.0.16: of the 1227 gem effects in both, styles 1, 2 and 3 are equal and every 3.27.0.10 style 4 is style 5 in 3.28.0.16; the 47 style 4 effects of 3.28.0.16 (exceptional supports such as SupportGreaterSpellCascade) are not in 3.27.0.10. dat-schema added GemStyles with EXCEPTIONAL in 5d0a9da (2026-03-10); 537a132, the commit before it, types ItemColor as i32."
+      "source": "Our reading of GemEffects in 3.27.0.10 and 3.28.0.16: of the 1224 gem effects in both, styles 1, 2 and 3 are equal and every 3.27.0.10 style 4 is style 5 in 3.28.0.16; the 47 style 4 effects of 3.28.0.16 (exceptional supports such as SupportGreaterSpellCascade) are not in 3.27.0.10. dat-schema added GemStyles with EXCEPTIONAL in 5d0a9da (2026-03-10); 537a132, the commit before it, types ItemColor as i32."
     }
   ]
 }
