@@ -2,8 +2,10 @@ package edition_test
 
 import (
 	"fmt"
-	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/edition"
@@ -82,12 +84,13 @@ func TestValuesFor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	styles := map[uint32]uint32{1: 1, 2: 2, 3: 3, 4: 5}
 	testCases := []struct {
 		version string
-		want    []string
+		want    map[string]map[uint32]uint32
 	}{
-		{version: "3.27.0.10", want: []string{"GemEffects.ItemColor 4->5"}},
-		{version: "3.27", want: []string{"GemEffects.ItemColor 4->5"}},
+		{version: "3.27.0.10", want: map[string]map[uint32]uint32{"GemEffects.ItemColor": styles}},
+		{version: "3.27", want: map[string]map[uint32]uint32{"GemEffects.ItemColor": styles}},
 		{version: "3.28.0.16"},
 		{version: "3.29.3.6"},
 	}
@@ -98,12 +101,12 @@ func TestValuesFor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var got []string
+			got := map[string]map[uint32]uint32{}
 			for _, v := range values {
-				got = append(got, fmt.Sprintf("%s.%s 4->%d", v.Table, v.Column, v.Map[4]))
+				got[v.Table+"."+v.Column] = v.Map
 			}
-			if !slices.Equal(got, testCase.want) {
-				t.Errorf("got %v, want %v", got, testCase.want)
+			if diff := cmp.Diff(testCase.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("values mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

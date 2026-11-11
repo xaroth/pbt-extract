@@ -155,10 +155,10 @@ type skillNames struct {
 	gems, skills []dataset.Name
 }
 
-// skillTables holds the ids of the tables skill rows refer to.
 // gemStyleColumn is the column of gem styles, which older game files number otherwise.
 const gemStyleColumn = "GemEffects.ItemColor"
 
+// skillTables holds the ids of the tables skill rows refer to.
 type skillTables struct {
 	nStats                                                                           int
 	types, itemClasses, gemTags, costTypes, bases, effects, sets, actives, baseItems []string

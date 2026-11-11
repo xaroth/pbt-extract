@@ -13,6 +13,7 @@ import (
 	"github.com/xaroth/pbt-engine/dataset"
 
 	"github.com/xaroth/pbt-extract/dat/dattest"
+	"github.com/xaroth/pbt-extract/edition"
 	"github.com/xaroth/pbt-extract/extract"
 )
 
@@ -370,32 +371,58 @@ func TestSkillsErrors(t *testing.T) {
 	}
 }
 
-// gemStyles27 maps gem styles as 3.27 numbers them (4 default) to the schema's (5 default).
-var gemStyles27 = []extract.ColumnValues{{Table: "GemEffects", Column: "ItemColor", Map: map[uint32]uint32{1: 1, 2: 2, 3: 3, 4: 5}}}
+// values27 returns the value maps edition/poe1/values.json gives for 3.27.0.10.
+func values27(t *testing.T) []extract.ColumnValues {
+	t.Helper()
+	e, err := edition.Load("poe1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := e.ValuesFor("3.27.0.10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []extract.ColumnValues
+	for _, v := range values {
+		out = append(out, extract.ColumnValues{Table: v.Table, Column: v.Column, Map: v.Map})
+	}
+	return out
+}
 
+// TestSkillsValues builds gems with every style, numbered as 3.27 numbers them and read through
+// the shipped 3.27 map, and as the schema numbers them.
 func TestSkillsValues(t *testing.T) {
 	t.Parallel()
-	// The game files number the default style 4, as 3.27 does.
-	rows := skillRows()
-	for _, r := range rows["GemEffects"] {
-		if r[6] == uint32(5) {
-			r[6] = uint32(4)
+	withStyles := func(styles ...uint32) fstest.MapFS {
+		rows := skillRows()
+		for i, r := range rows["GemEffects"] {
+			r[6] = styles[i]
 		}
+		g := game(t)
+		maps.Copy(g, skillFiles(t, rows))
+		return g
 	}
-	g := game(t)
-	maps.Copy(g, skillFiles(t, rows))
-	in := input(t, g, export())
-	in.Values = gemStyles27
+	in := input(t, withStyles(1, 2, 3, 4), export())
+	in.Values = values27(t)
 	got, err := extract.Dataset(in)
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
 	}
-	want, err := extract.Dataset(input(t, game(t), export()))
+	want, err := extract.Dataset(input(t, withStyles(1, 2, 3, 5), export()))
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
 	}
 	if diff := cmp.Diff(want.Skills.Gems, got.Skills.Gems, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Gems mismatch (-want +got):\n%s", diff)
+	}
+	var styles []dataset.GemStyle
+	for _, g := range got.Skills.Gems {
+		for _, e := range g.Effects {
+			styles = append(styles, e.Style)
+		}
+	}
+	if w := []dataset.GemStyle{dataset.TransfiguredX, dataset.TransfiguredY, dataset.Trarthan, dataset.DefaultStyle}; !slices.Equal(styles, w) {
+		t.Errorf("got styles %v, want %v", styles, w)
 	}
 }
 
@@ -407,9 +434,9 @@ func TestSkillsValuesErrors(t *testing.T) {
 		error  string
 	}{
 		// The default style of the game files is 5, which the map lacks.
-		{name: "value not in map", values: gemStyles27, error: "column ItemColor: 5 not in the edition's values"},
+		{name: "value not in map", values: values27(t), error: "column ItemColor: 5 not in the edition's values"},
 		{name: "column not mapped", values: []extract.ColumnValues{{Table: "Mods", Column: "GameMode", Map: map[uint32]uint32{1: 1}}}, error: "values of Mods.GameMode: column not read through a value map"},
-		{name: "column twice", values: append(slices.Clone(gemStyles27), gemStyles27...), error: "values of GemEffects.ItemColor given twice"},
+		{name: "column twice", values: append(values27(t), values27(t)...), error: "values of GemEffects.ItemColor given twice"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
