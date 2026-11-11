@@ -226,8 +226,8 @@ func writeTable(a *bundle.Archive, ed *edition.Edition, in input.Dir, name strin
 		return err
 	}
 
-	names := make([]string, len(def.Columns))
-	for i, c := range def.Columns {
+	names := make([]string, t.Columns())
+	for i, c := range def.Columns[:t.Columns()] {
 		names[i] = "_" + strconv.Itoa(i)
 		if c.Name != nil {
 			names[i] = *c.Name

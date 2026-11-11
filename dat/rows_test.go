@@ -88,6 +88,29 @@ func TestRows(t *testing.T) {
 	}
 }
 
+func TestRowsMissingColumns(t *testing.T) {
+	t.Parallel()
+	s := rowsSchema(t)
+	def, _ := s.Table("T")
+	b := dattest.Encode(t, dat.TableDef{Name: "T", Columns: def.Columns[:2]}, []any{"first", true})
+	type idRow struct {
+		ID string `dat:"Id"`
+	}
+	got, err := dat.Rows[idRow](s, "T", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]idRow{{ID: "first"}}, got); diff != "" {
+		t.Errorf("(-want +got)\n%s", diff)
+	}
+	_, err = dat.Rows[struct {
+		Int int32 `dat:"Int"`
+	}](s, "T", b)
+	if want := "column Int not in the file, whose rows hold the first 2 columns"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("got error %v, want one containing %q", err, want)
+	}
+}
+
 func TestRef(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

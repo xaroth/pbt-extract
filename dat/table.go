@@ -21,31 +21,38 @@ type Table struct {
 	rowSize  int
 	fixed    []byte
 	varData  []byte // starts at the marker; variable offsets are relative to it
-	offsets  []int  // byte offset of each column within a row
+	offsets  []int  // byte offset of each column within a row, and the row size last
+	columns  int    // columns of def the file holds
 }
 
-// Read parses a .datc64 file against def. It fails when def's row size does not match the
-// file, which is how a schema from the wrong game version shows up.
+// Read parses a .datc64 file against def. A file whose rows hold only the first columns of def
+// is read with those columns: an older game version that lacks columns a later version
+// appended. It fails when the file's row size is not the size of def or of a prefix of its
+// columns, which is how a schema from the wrong game version shows up.
 func Read(def TableDef, b []byte) (*Table, error) {
 	if len(b) < 4 {
 		return nil, errors.New("file shorter than row count")
 	}
-	t := &Table{def: def, rowCount: int(binary.LittleEndian.Uint32(b)), rowSize: def.RowSize()}
-	end := 4 + t.rowCount*t.rowSize
-	if end+len(marker) > len(b) || !bytes.Equal(b[end:end+len(marker)], marker) {
-		if actual, ok := actualRowSize(b, t.rowCount); ok {
-			return nil, fmt.Errorf("table %s: schema row size %d, file row size %d", def.Name, t.rowSize, actual)
-		}
-		return nil, fmt.Errorf("table %s: no variable-data marker after %d rows of %d bytes", def.Name, t.rowCount, t.rowSize)
-	}
-	t.fixed, t.varData = b[4:end], b[end:]
+	t := &Table{def: def, rowCount: int(binary.LittleEndian.Uint32(b))}
 	off := 0
+	t.offsets = append(t.offsets, off)
 	for _, c := range def.Columns {
-		t.offsets = append(t.offsets, off)
 		n, _ := c.size()
 		off += n
+		t.offsets = append(t.offsets, off)
 	}
-	return t, nil
+	for t.columns = len(def.Columns); t.columns >= min(1, len(def.Columns)); t.columns-- {
+		t.rowSize = t.offsets[t.columns]
+		end := 4 + t.rowCount*t.rowSize
+		if end+len(marker) <= len(b) && bytes.Equal(b[end:end+len(marker)], marker) {
+			t.fixed, t.varData = b[4:end], b[end:]
+			return t, nil
+		}
+	}
+	if actual, ok := actualRowSize(b, t.rowCount); ok {
+		return nil, fmt.Errorf("table %s: schema row size %d, file row size %d", def.Name, def.RowSize(), actual)
+	}
+	return nil, fmt.Errorf("table %s: no variable-data marker after %d rows of %d bytes", def.Name, t.rowCount, def.RowSize())
 }
 
 // actualRowSize finds the row size implied by the first marker that divides evenly, for
@@ -72,6 +79,9 @@ func (t *Table) Len() int { return t.rowCount }
 // Def returns the table definition the file was read with.
 func (t *Table) Def() TableDef { return t.def }
 
+// Columns returns how many of Def's columns the file holds; the others are missing from it.
+func (t *Table) Columns() int { return t.columns }
+
 // Value decodes one cell. Scalars decode to bool, int16, uint16, int32, uint32, float32 or
 // string; row and foreignrow to an int row index, or nil when empty. A row reference past the
 // table's end, or any reference above 2^31-1, is an error; whether a foreignrow index is inside
@@ -84,6 +94,9 @@ func (t *Table) Value(row, col int) (any, error) {
 	}
 	if col < 0 || col >= len(t.def.Columns) {
 		return nil, fmt.Errorf("column %d out of range [0, %d)", col, len(t.def.Columns))
+	}
+	if col >= t.columns {
+		return nil, fmt.Errorf("column %d not in the file, whose rows hold %d columns", col, t.columns)
 	}
 	c := t.def.Columns[col]
 	cell := t.fixed[row*t.rowSize+t.offsets[col]:]
