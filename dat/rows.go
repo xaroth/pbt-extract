@@ -58,7 +58,8 @@ var (
 // column whose schema has no references, any table in the schema is accepted. A reference to
 // a row past the end of the referenced table is not detected here: the step that joins the
 // two tables checks it. Fields must be exported. Lists of unknown element type are not
-// supported. Fields are checked against the schema before any row is decoded.
+// supported. Fields are checked against the schema before any row is decoded. A field whose
+// column the file lacks (see Read) is an error.
 func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	def, ok := s.Table(name)
 	if !ok {
@@ -71,6 +72,11 @@ func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	t, err := Read(def, b)
 	if err != nil {
 		return nil, err
+	}
+	for _, c := range cols {
+		if c >= t.Columns() {
+			return nil, fmt.Errorf("table %s: column %s not in the file, whose rows hold the first %d columns", name, *def.Columns[c].Name, t.Columns())
+		}
 	}
 	out := make([]T, t.Len())
 	for r := range out {

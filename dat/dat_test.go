@@ -116,11 +116,36 @@ func TestReadEmptyTable(t *testing.T) {
 	}
 }
 
+func TestReadMissingColumns(t *testing.T) {
+	t.Parallel()
+	def := tableDef(t)
+	older := dat.TableDef{Name: def.Name, Columns: def.Columns[:11]}
+	b := dattest.Encode(t, older, row("first", "a", "b", 1, 2)[:11], row("second", "c", "d", 0, 3)[:11])
+	tbl, err := dat.Read(def, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tbl.Columns() != 11 {
+		t.Errorf("got %d columns, want 11", tbl.Columns())
+	}
+	if got, err := tbl.Value(1, 0); err != nil || got != "second" {
+		t.Errorf("got %v, %v, want second", got, err)
+	}
+	if got, err := tbl.Value(1, 10); err != nil || !cmp.Equal(got, [2]any{int32(10), int32(20)}) {
+		t.Errorf("got %v, %v, want [10 20]", got, err)
+	}
+	if _, err := tbl.Value(0, 11); err == nil || !strings.Contains(err.Error(), "not in the file") {
+		t.Errorf("got error %v, want one containing %q", err, "not in the file")
+	}
+}
+
 func TestReadErrors(t *testing.T) {
 	t.Parallel()
 	def := tableDef(t)
 	good := dattest.Encode(t, def, row("id", "a", "b", 0, 0))
 	wider := slices.Insert(slices.Clone(good), 4+rowSize, 0, 0, 0, 0)
+	// 106 bytes is not the size of a prefix of the columns.
+	narrower := slices.Delete(slices.Clone(good), 4+rowSize-3, 4+rowSize)
 
 	testCases := []struct {
 		name    string
@@ -129,6 +154,7 @@ func TestReadErrors(t *testing.T) {
 	}{
 		{"too short", good[:2], "shorter than row count"},
 		{"schema row size differs from file", wider, "schema row size 109, file row size 113"},
+		{"file row between column ends", narrower, "schema row size 109, file row size 106"},
 		{"no marker", good[:4+rowSize], "no variable-data marker"},
 	}
 	for _, testCase := range testCases {
