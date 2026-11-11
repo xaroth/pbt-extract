@@ -50,7 +50,6 @@ const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + `
 	{"name": "BuffTemplates", "columns": [
 		{"name": "BuffDefinitionsKey", "type": "foreignrow"},
 		{"name": "Buff_StatValues", "type": "i32", "array": true}]},
-	{"name": "BuffDefinitions", "columns": [{"name": "StatsKeys", "type": "foreignrow", "array": true}]},
 	{"name": "QuestStaticRewards", "columns": [
 		{"name": "QuestFlag", "type": "foreignrow"}, {"name": "PassivePoints", "type": "i32"},
 		{"name": "StatsKeys", "type": "foreignrow", "array": true}, {"name": "StatValues", "type": "i32", "array": true},
@@ -59,7 +58,7 @@ const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + `
 		{"name": "StatValuesHardmode", "type": "i32", "array": true}, {"name": "ClientStringHardmode", "type": "foreignrow"},
 		{"name": "LeagueReward", "type": "bool"}]},
 	{"name": "QuestFlags", "columns": [{"name": "Id", "type": "string"}]},
-	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]},` + itemTables + `
+	{"name": "Quest", "columns": [{"name": "Id", "type": "string"}, {"name": "Act", "type": "i32"}]},` + itemTables + `,` + buffTables + `
 ]}`
 
 // encode encodes rows as Data/<table>.datc64 of the test schema.
@@ -150,10 +149,6 @@ func game(t *testing.T) fstest.MapFS {
 			[]any{0, []int32{-5, 9}},
 			[]any{1, []int32{1}},
 		)},
-		"Data/BuffDefinitions.datc64": {Data: encode(t, "BuffDefinitions",
-			[]any{[]int{4}},
-			[]any{[]int(nil)},
-		)},
 		"Data/QuestStaticRewards.datc64": {Data: encode(t, "QuestStaticRewards",
 			questReward(0, 1, nil, nil, 0, 0, 0, false),
 			questReward(1, 0, []int{4, 3}, []int32{-30, -20}, 1, 0, 2, false),
@@ -174,6 +169,7 @@ func game(t *testing.T) fstest.MapFS {
 		g[f] = &fstest.MapFile{Data: utf16le("include \"" + sdDir + "stat_descriptions.txt\"\n")}
 	}
 	itemGame(t, g)
+	buffGame(t, g)
 	maps.Copy(g, skillFiles(t, skillRows()))
 	return g
 }
@@ -266,10 +262,10 @@ func TestDataset(t *testing.T) {
 			},
 		}},
 	}
-	// TestItems checks the items group, TestSkills the skills group.
+	// TestItems, TestSkills and TestBuffs check their groups.
 	ignore := cmp.Options{
-		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames"),
-		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills"),
+		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames", "BuffNames"),
+		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills", "Buffs"),
 	}
 	if diff := cmp.Diff(want, got, ignore, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)
@@ -355,13 +351,13 @@ func TestDatasetErrors(t *testing.T) {
 			)}
 		}},
 		{name: "buff with fewer values than stats", game: func(t *testing.T, g fstest.MapFS) {
-			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encode(t, "BuffDefinitions", []any{[]int{4, 4, 4}}, []any{[]int(nil)})}
+			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encodeBuffDefs(t, buffDef{id: "a", stats: []int{4, 4, 4}}, buffDef{id: "b"})}
 		}},
 		{name: "buff without definition", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/BuffTemplates.datc64"] = &fstest.MapFile{Data: encode(t, "BuffTemplates", []any{-1, []int32{1}}, []any{1, []int32{1}})}
 		}},
 		{name: "buff stat out of range", game: func(t *testing.T, g fstest.MapFS) {
-			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encode(t, "BuffDefinitions", []any{[]int{9}}, []any{[]int(nil)})}
+			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encodeBuffDefs(t, buffDef{id: "a", stats: []int{9}}, buffDef{id: "b"})}
 		}},
 		{name: "node not in PassiveSkills", export: func(e *treeexport.Export) { e.Nodes["9"] = treeexport.Node{Skill: 9} }},
 		{name: "unknown mastery effect", export: func(e *treeexport.Export) {

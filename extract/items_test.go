@@ -41,7 +41,9 @@ const itemTables = `
 	{"name": "Flasks", "columns": [
 		{"name": "BaseItemTypesKey", "type": "foreignrow", "references": {"table": "BaseItemTypes"}},
 		{"name": "Type", "type": "enumrow"}, {"name": "LifePerUse", "type": "i32"}, {"name": "ManaPerUse", "type": "i32"},
-		{"name": "RecoveryTime", "type": "i32"}, {"name": "RecoveryTime2", "type": "i32"}]},
+		{"name": "RecoveryTime", "type": "i32"}, {"name": "RecoveryTime2", "type": "i32"},
+		{"name": "BuffDefinitionsKey", "type": "foreignrow", "references": {"table": "BuffDefinitions"}},
+		{"name": "BuffStatValues", "type": "i32", "array": true}]},
 	{"name": "ComponentCharges", "columns": [
 		{"name": "BaseItemTypesKey", "type": "string"}, {"name": "MaxCharges", "type": "i32"}, {"name": "PerCharge", "type": "i32"}]},
 	{"name": "ModType", "columns": [{"name": "Name", "type": "string"}]},
@@ -183,7 +185,7 @@ func itemGame(t *testing.T, g fstest.MapFS) {
 			[]any{2, int32(0), int32(0), int32(0), int32(0), int32(67), int32(77), int32(-3), int32(0), int32(0)}),
 		"ShieldTypes": encode(t, "ShieldTypes", []any{2, int32(25)}),
 		"WeaponTypes": encode(t, "WeaponTypes", []any{3, int32(500), int32(769), int32(74), int32(155), int32(13)}),
-		"Flasks":      encode(t, "Flasks", []any{4, uint32(1), int32(2400), int32(0), int32(35), int32(30)}),
+		"Flasks":      encode(t, "Flasks", []any{4, uint32(1), int32(2400), int32(0), int32(35), int32(30), dattest.Null, []int32(nil)}),
 		"ComponentCharges": encode(t, "ComponentCharges",
 			[]any{"Metadata/Items/Flasks/FlaskLife11", int32(45), int32(15)}),
 		"ModType":   encode(t, "ModType", []any{"IncreasedLife"}, []any{"AllResistances"}),

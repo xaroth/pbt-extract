@@ -13,6 +13,7 @@ func TestReads(t *testing.T) {
 		"Data/Stats.datc64":           true,
 		"data/passiveskills.datc64":   true,
 		"Data/BaseItemTypes.datc64":   true,
+		"Data/Tinctures.datc64":       true,
 		"Data/French/Stats.datc64":    false,
 		"Metadata/Characters/Str.ot":  true,
 		"Metadata/Items/Item.it":      true,
