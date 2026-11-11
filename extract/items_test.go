@@ -158,6 +158,17 @@ func itemMods() []modRow {
 
 // itemGame adds the item tables to g: a body armour, a shield, an axe and a life flask, a
 // currency base that is left out, and four mods of which the monster mod is left out.
+// itemBases are the BaseItemTypes rows of items; gemBases follow them.
+func itemBases() [][]any {
+	return [][]any{
+		{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{2}, []int{tagBodyArmour}},
+		{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil)},
+		{"Metadata/Items/Armours/Shields/ShieldInt16", 2, "Titanium Spirit Shield", []int(nil), []int{tagShield}},
+		{"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", 3, "Sundering Axe", []int(nil), []int(nil)},
+		{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil)},
+	}
+}
+
 func itemGame(t *testing.T, g fstest.MapFS) {
 	t.Helper()
 	files := map[string][]byte{
@@ -165,12 +176,7 @@ func itemGame(t *testing.T, g fstest.MapFS) {
 		"ItemClasses": encode(t, "ItemClasses",
 			[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
 			[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"}),
-		"BaseItemTypes": encode(t, "BaseItemTypes",
-			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{2}, []int{tagBodyArmour}},
-			[]any{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil)},
-			[]any{"Metadata/Items/Armours/Shields/ShieldInt16", 2, "Titanium Spirit Shield", []int(nil), []int{tagShield}},
-			[]any{"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", 3, "Sundering Axe", []int(nil), []int(nil)},
-			[]any{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil)}),
+		"BaseItemTypes": encode(t, "BaseItemTypes", append(itemBases(), gemBases()...)...),
 		"ArmourTypes": encode(t, "ArmourTypes",
 			[]any{0, int32(711), int32(782), int32(0), int32(0), int32(0), int32(0), int32(-5), int32(0), int32(0)},
 			[]any{1, int32(1), int32(1), int32(0), int32(0), int32(0), int32(0), int32(0), int32(0), int32(0)},
@@ -273,7 +279,7 @@ func TestItemsErrors(t *testing.T) {
 			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{1}, []int(nil)}),
 			"implicit mod row 1 is not an item mod"},
 		{"base class out of range", set("BaseItemTypes", []any{"X", 9, "X", []int(nil), []int(nil)}), "ItemClasses row 9 out of range"},
-		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{9}}), "tag row 9 out of range"},
+		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{9}}), "Tags row 9 out of range"},
 		{"values for a base out of range", set("ShieldTypes", []any{9, int32(25)}), "ShieldTypes row 0: base row 9 out of range"},
 		{"second values row", set("ShieldTypes", []any{2, int32(25)}, []any{2, int32(26)}), "base 2 has a second row"},
 		{"flask without charges", set("ComponentCharges"), "has no ComponentCharges row"},
@@ -285,7 +291,7 @@ func TestItemsErrors(t *testing.T) {
 		{"mod family out of range", setMods(func(m []modRow) { m[0].families = []int{9} }), "ModFamily row 9 out of range"},
 		{"spawn weights without tags", setMods(func(m []modRow) { m[0].spawn = []int32{1} }), "spawn weights: 2 tags, 1 weights"},
 		{"generation tag out of range", setMods(func(m []modRow) { m[0].genTags, m[0].gen = []int{9}, []int32{1} }),
-			"generation weights: tag row 9 out of range"},
+			"generation weights: Tags row 9 out of range"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
