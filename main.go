@@ -138,7 +138,11 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	if err != nil {
 		return err
 	}
-	bi := extract.Input{Game: a, Schema: schema}
+	bi, err := editionInput(ed, version)
+	if err != nil {
+		return err
+	}
+	bi.Game, bi.Schema = a, schema
 	// Ruthless uses the hardmode columns of PassiveSkills.
 	treeFiles := []struct {
 		variant, file string
@@ -159,12 +163,6 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 		}
 		bi.Trees = append(bi.Trees, extract.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
-	for _, t := range ed.Totems {
-		bi.EditionTotems = append(bi.EditionTotems, dataset.EditionTotem{GrantedEffect: t.GrantedEffect, Totem: t.Totem, Source: t.Source})
-	}
-	for _, c := range ed.Constants {
-		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
-	}
 	d, err := extract.Dataset(bi)
 	if err != nil {
 		return err
@@ -175,6 +173,26 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	}
 	_, err = dataset.Write(out, d)
 	return err
+}
+
+// editionInput returns the part of a build's input that edition data gives for game version:
+// totems, constants and value maps.
+func editionInput(ed *edition.Edition, version string) (extract.Input, error) {
+	var bi extract.Input
+	for _, t := range ed.Totems {
+		bi.EditionTotems = append(bi.EditionTotems, dataset.EditionTotem{GrantedEffect: t.GrantedEffect, Totem: t.Totem, Source: t.Source})
+	}
+	for _, c := range ed.Constants {
+		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
+	}
+	values, err := ed.ValuesFor(version)
+	if err != nil {
+		return extract.Input{}, err
+	}
+	for _, v := range values {
+		bi.Values = append(bi.Values, extract.ColumnValues{Table: v.Table, Column: v.Column, Map: v.Map})
+	}
+	return bi, nil
 }
 
 // writeBundles lists the bundle files holding the game files a build may read.

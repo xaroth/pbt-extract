@@ -26,11 +26,41 @@ type Input struct {
 	Constants []dataset.Constant
 	// EditionTotems are the totem links the game data does not hold.
 	EditionTotems []dataset.EditionTotem
+	// Values are the columns whose values the game files number otherwise than the schema's
+	// enumeration. Only GemEffects.ItemColor is read through a map.
+	Values []ColumnValues
+}
+
+// ColumnValues gives the schema's value for each value the game files hold in Table.Column.
+type ColumnValues struct {
+	Table, Column string
+	Map           map[uint32]uint32
+}
+
+// valueMaps returns the maps of values by table and column, which must be ones the build reads
+// through a map.
+func valueMaps(values []ColumnValues) (map[string]map[uint32]uint32, error) {
+	out := map[string]map[uint32]uint32{}
+	for _, v := range values {
+		key := v.Table + "." + v.Column
+		if key != gemStyleColumn {
+			return nil, fmt.Errorf("values of %s: column not read through a value map", key)
+		}
+		if _, dup := out[key]; dup {
+			return nil, fmt.Errorf("values of %s given twice", key)
+		}
+		out[key] = v.Map
+	}
+	return out, nil
 }
 
 // Dataset builds the tables of one game version. The caller fills in the manifest.
 func Dataset(in Input) (*dataset.Dataset, error) {
 	r, schema := in.Game, in.Schema
+	values, err := valueMaps(in.Values)
+	if err != nil {
+		return nil, err
+	}
 	stats, err := readTable(r, schema, "Stats", "Id")
 	if err != nil {
 		return nil, err
@@ -88,7 +118,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	}
 	text.ItemClassNames, text.BaseNames, text.ModNames = names.classes, names.bases, names.mods
 	var skillText skillNames
-	if d.Skills, skillText, err = skills(r, schema, len(d.Stats)); err != nil {
+	if d.Skills, skillText, err = skills(r, schema, len(d.Stats), values[gemStyleColumn]); err != nil {
 		return nil, err
 	}
 	text.GemNames, text.SkillNames = skillText.gems, skillText.skills

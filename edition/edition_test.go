@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/edition"
 )
@@ -72,5 +75,42 @@ func TestNameColumns(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValuesFor(t *testing.T) {
+	t.Parallel()
+	e, err := edition.Load("poe1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	styles := map[uint32]uint32{1: 1, 2: 2, 3: 3, 4: 5}
+	testCases := []struct {
+		version string
+		want    map[string]map[uint32]uint32
+	}{
+		{version: "3.27.0.10", want: map[string]map[uint32]uint32{"GemEffects.ItemColor": styles}},
+		{version: "3.27", want: map[string]map[uint32]uint32{"GemEffects.ItemColor": styles}},
+		{version: "3.28.0.16"},
+		{version: "3.29.3.6"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.version, func(t *testing.T) {
+			t.Parallel()
+			values, err := e.ValuesFor(testCase.version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]map[uint32]uint32{}
+			for _, v := range values {
+				got[v.Table+"."+v.Column] = v.Map
+			}
+			if diff := cmp.Diff(testCase.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("values mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+	if _, err := e.ValuesFor("3.x"); err == nil {
+		t.Error("ValuesFor(3.x): got nil error, want an error")
 	}
 }
