@@ -2,6 +2,7 @@ package extract_test
 
 import (
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -362,6 +363,60 @@ func TestSkillsErrors(t *testing.T) {
 				testCase.game(g)
 			}
 			_, err := extract.Dataset(input(t, g, export()))
+			if err == nil || !strings.Contains(err.Error(), testCase.error) {
+				t.Errorf("Dataset: got error %v, want one containing %q", err, testCase.error)
+			}
+		})
+	}
+}
+
+// gemStyles27 maps gem styles as 3.27 numbers them (4 default) to the schema's (5 default).
+var gemStyles27 = []extract.ColumnValues{{Table: "GemEffects", Column: "ItemColor", Map: map[uint32]uint32{1: 1, 2: 2, 3: 3, 4: 5}}}
+
+func TestSkillsValues(t *testing.T) {
+	t.Parallel()
+	// The game files number the default style 4, as 3.27 does.
+	rows := skillRows()
+	for _, r := range rows["GemEffects"] {
+		if r[6] == uint32(5) {
+			r[6] = uint32(4)
+		}
+	}
+	g := game(t)
+	maps.Copy(g, skillFiles(t, rows))
+	in := input(t, g, export())
+	in.Values = gemStyles27
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want, err := extract.Dataset(input(t, game(t), export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	if diff := cmp.Diff(want.Skills.Gems, got.Skills.Gems, cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("Gems mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestSkillsValuesErrors(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		values []extract.ColumnValues
+		error  string
+	}{
+		// The default style of the game files is 5, which the map lacks.
+		{name: "value not in map", values: gemStyles27, error: "column ItemColor: 5 not in the edition's values"},
+		{name: "column not mapped", values: []extract.ColumnValues{{Table: "Mods", Column: "GameMode", Map: map[uint32]uint32{1: 1}}}, error: "values of Mods.GameMode: column not read through a value map"},
+		{name: "column twice", values: append(slices.Clone(gemStyles27), gemStyles27...), error: "values of GemEffects.ItemColor given twice"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			in := input(t, game(t), export())
+			in.Values = testCase.values
+			_, err := extract.Dataset(in)
 			if err == nil || !strings.Contains(err.Error(), testCase.error) {
 				t.Errorf("Dataset: got error %v, want one containing %q", err, testCase.error)
 			}

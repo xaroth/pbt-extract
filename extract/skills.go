@@ -156,16 +156,22 @@ type skillNames struct {
 }
 
 // skillTables holds the ids of the tables skill rows refer to.
+// gemStyleColumn is the column of gem styles, which older game files number otherwise.
+const gemStyleColumn = "GemEffects.ItemColor"
+
 type skillTables struct {
 	nStats                                                                           int
 	types, itemClasses, gemTags, costTypes, bases, effects, sets, actives, baseItems []string
+	// styles maps the game files' gem styles to the schema's, nil when they agree.
+	styles map[uint32]uint32
 }
 
 // skills reads the skills group: every gem, granted effect, stat set and active skill, in table
-// order. nStats is the number of rows in Stats.
-func skills(r ot.Reader, schema *dat.Schema, nStats int) (*dataset.Skills, skillNames, error) {
+// order. nStats is the number of rows in Stats; styles, when not nil, maps the game files' gem
+// styles to the schema's.
+func skills(r ot.Reader, schema *dat.Schema, nStats int, styles map[uint32]uint32) (*dataset.Skills, skillNames, error) {
 	var names skillNames
-	t := skillTables{nStats: nStats}
+	t := skillTables{nStats: nStats, styles: styles}
 	var err error
 	for _, x := range []struct {
 		table string
@@ -308,7 +314,14 @@ func (t *skillTables) gemEffect(row gemEffectRow) (dataset.GemEffect, error) {
 	if e.Tags, err = lookupAll(row.Tags, t.gemTags, "GemTags"); err != nil {
 		return e, err
 	}
-	e.Style, err = narrow[dataset.GemStyle](row.Style, "ItemColor")
+	style := row.Style
+	if t.styles != nil {
+		var ok bool
+		if style, ok = t.styles[row.Style]; !ok {
+			return e, fmt.Errorf("column ItemColor: %d not in the edition's values", row.Style)
+		}
+	}
+	e.Style, err = narrow[dataset.GemStyle](style, "ItemColor")
 	return e, err
 }
 

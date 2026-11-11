@@ -162,6 +162,13 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	for _, t := range ed.Totems {
 		bi.EditionTotems = append(bi.EditionTotems, dataset.EditionTotem{GrantedEffect: t.GrantedEffect, Totem: t.Totem, Source: t.Source})
 	}
+	values, err := ed.ValuesFor(version)
+	if err != nil {
+		return err
+	}
+	for _, v := range values {
+		bi.Values = append(bi.Values, extract.ColumnValues{Table: v.Table, Column: v.Column, Map: v.Map})
+	}
 	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}

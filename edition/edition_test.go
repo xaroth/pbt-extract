@@ -2,6 +2,7 @@ package edition_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/xaroth/pbt-extract/dat"
@@ -72,5 +73,41 @@ func TestNameColumns(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValuesFor(t *testing.T) {
+	t.Parallel()
+	e, err := edition.Load("poe1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCases := []struct {
+		version string
+		want    []string
+	}{
+		{version: "3.27.0.10", want: []string{"GemEffects.ItemColor 4->5"}},
+		{version: "3.27", want: []string{"GemEffects.ItemColor 4->5"}},
+		{version: "3.28.0.16"},
+		{version: "3.29.3.6"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.version, func(t *testing.T) {
+			t.Parallel()
+			values, err := e.ValuesFor(testCase.version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, v := range values {
+				got = append(got, fmt.Sprintf("%s.%s 4->%d", v.Table, v.Column, v.Map[4]))
+			}
+			if !slices.Equal(got, testCase.want) {
+				t.Errorf("got %v, want %v", got, testCase.want)
+			}
+		})
+	}
+	if _, err := e.ValuesFor("3.x"); err == nil {
+		t.Error("ValuesFor(3.x): got nil error, want an error")
 	}
 }
