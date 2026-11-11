@@ -94,10 +94,6 @@ type chargesRow struct {
 	PerCharge int32  `dat:"PerCharge"`
 }
 
-type idRow struct {
-	ID string `dat:"Id"`
-}
-
 type modTypeRow struct {
 	Name string `dat:"Name"`
 }
@@ -202,14 +198,11 @@ type itemNames struct {
 // and the mods of modDomains. All are in table order. nStats is the number of rows in Stats.
 func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
-	tags, err := readRows[idRow](r, s, "Tags")
+	tags, err := readIDs(r, s, "Tags")
 	if err != nil {
 		return nil, nil, names, err
 	}
-	it := &dataset.Items{Tags: make([]string, len(tags))}
-	for i, t := range tags {
-		it.Tags[i] = t.ID
-	}
+	it := &dataset.Items{Tags: tags}
 	mods, modIDs, err := itemMods(r, s, it.Tags, nStats, &names)
 	if err != nil {
 		return nil, nil, names, err
@@ -268,7 +261,7 @@ func itemBase(b baseRow, classes []itemClassRow, tags []string, modIDs map[int]s
 		}
 		base.Implicits = append(base.Implicits, id)
 	}
-	if base.Tags, err = tagIDs(b.Tags, tags); err != nil {
+	if base.Tags, err = lookupAll(b.Tags, tags, "Tags"); err != nil {
 		return base, false, err
 	}
 	return base, true, nil
@@ -446,10 +439,10 @@ func itemMod(m modRow, types []modTypeRow, families []idRow, tags []string, nSta
 	if mod.Stats, err = m.stats(nStats); err != nil {
 		return mod, err
 	}
-	if mod.Tags, err = tagIDs(m.ImplicitTags, tags); err != nil {
+	if mod.Tags, err = lookupAll(m.ImplicitTags, tags, "Tags"); err != nil {
 		return mod, err
 	}
-	if mod.AddedTags, err = tagIDs(m.Tags, tags); err != nil {
+	if mod.AddedTags, err = lookupAll(m.Tags, tags, "Tags"); err != nil {
 		return mod, err
 	}
 	if mod.SpawnWeights, err = tagWeights(m.SpawnTags, m.SpawnWeights, tags); err != nil {
@@ -461,24 +454,12 @@ func itemMod(m modRow, types []modTypeRow, families []idRow, tags []string, nSta
 	return mod, nil
 }
 
-func tagIDs(refs []dat.Ref, tags []string) ([]string, error) {
-	var out []string
-	for _, ref := range refs {
-		row, ok := ref.Row()
-		if !ok || row >= len(tags) {
-			return nil, fmt.Errorf("tag row %d out of range", row)
-		}
-		out = append(out, tags[row])
-	}
-	return out, nil
-}
-
 // tagWeights pairs tag references with their weights.
 func tagWeights(refs []dat.Ref, weights []int32, tags []string) ([]dataset.TagWeight, error) {
 	if len(refs) != len(weights) {
 		return nil, fmt.Errorf("%d tags, %d weights", len(refs), len(weights))
 	}
-	ids, err := tagIDs(refs, tags)
+	ids, err := lookupAll(refs, tags, "Tags")
 	if err != nil {
 		return nil, err
 	}
@@ -487,23 +468,4 @@ func tagWeights(refs []dat.Ref, weights []int32, tags []string) ([]dataset.TagWe
 		out = append(out, dataset.TagWeight{Tag: id, Weight: weights[i]})
 	}
 	return out, nil
-}
-
-// lookup returns the row of rows that ref references.
-func lookup[T any](ref dat.Ref, rows []T, table string) (T, error) {
-	row, ok := ref.Row()
-	if !ok || row >= len(rows) {
-		var zero T
-		return zero, fmt.Errorf("%s row %d out of range", table, row)
-	}
-	return rows[row], nil
-}
-
-// readRows decodes Data/<name>.datc64 into rows of T with dat.Rows.
-func readRows[T any](r ot.Reader, s *dat.Schema, name string) ([]T, error) {
-	b, err := r.ReadFile("Data/" + name + ".datc64")
-	if err != nil {
-		return nil, err
-	}
-	return dat.Rows[T](s, name, b)
 }

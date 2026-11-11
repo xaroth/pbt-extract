@@ -18,7 +18,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const schemaJSON = `{"version": 7, "tables": [
+const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + `
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Characters", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
@@ -174,6 +174,7 @@ func game(t *testing.T) fstest.MapFS {
 		g[f] = &fstest.MapFile{Data: utf16le("include \"" + sdDir + "stat_descriptions.txt\"\n")}
 	}
 	itemGame(t, g)
+	maps.Copy(g, skillFiles(t, skillRows()))
 	return g
 }
 
@@ -265,10 +266,10 @@ func TestDataset(t *testing.T) {
 			},
 		}},
 	}
-	// TestItems checks the items group.
+	// TestItems checks the items group, TestSkills the skills group.
 	ignore := cmp.Options{
-		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames"),
-		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods"),
+		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames"),
+		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills"),
 	}
 	if diff := cmp.Diff(want, got, ignore, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)
