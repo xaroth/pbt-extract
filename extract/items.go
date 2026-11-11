@@ -103,6 +103,7 @@ type modRow struct {
 	Name              string    `dat:"Name"`
 	Domain            uint32    `dat:"Domain"`
 	Generation        uint32    `dat:"GenerationType"`
+	GameMode          uint32    `dat:"GameMode"`
 	Level             int32     `dat:"Level"`
 	Type              dat.Ref   `dat:"ModTypeKey" ref:"ModType"`
 	Families          []dat.Ref `dat:"Families" ref:"ModFamily"`
@@ -424,6 +425,11 @@ func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, names *item
 
 func itemMod(m modRow, types []modTypeRow, families []idRow, tags []string, nStats int) (dataset.Mod, error) {
 	mod := dataset.Mod{ID: m.ID, Domain: int32(m.Domain), Generation: int32(m.Generation), Level: m.Level}
+	gameMode, err := narrow[int32](m.GameMode, "GameMode")
+	if err != nil {
+		return mod, err
+	}
+	mod.GameMode = gameMode
 	t, err := lookup(m.Type, types, "ModType")
 	if err != nil {
 		return mod, err

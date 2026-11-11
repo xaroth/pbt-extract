@@ -83,7 +83,8 @@ const itemTables = `
 		{"name": "Stat5MinHardmode", "type": "i32"}, {"name": "Stat5MaxHardmode", "type": "i32"},
 		{"name": "Stat6MinHardmode", "type": "i32"}, {"name": "Stat6MaxHardmode", "type": "i32"},
 		{"name": "Stat7MinHardmode", "type": "i32"}, {"name": "Stat7MaxHardmode", "type": "i32"},
-		{"name": "Stat8MinHardmode", "type": "i32"}, {"name": "Stat8MaxHardmode", "type": "i32"}]}`
+		{"name": "Stat8MinHardmode", "type": "i32"}, {"name": "Stat8MaxHardmode", "type": "i32"},
+		{"name": "GameMode", "type": "enumrow"}]}`
 
 // modStat is one stat slot of a Mods row: a Stats row, its range and its Ruthless range.
 type modStat struct {
@@ -104,6 +105,7 @@ type modRow struct {
 	gen                      []int32
 	ruthless                 bool
 	stats                    []modStat
+	gameMode                 uint32
 }
 
 func (m modRow) row() []any {
@@ -124,7 +126,7 @@ func (m modRow) row() []any {
 	for _, s := range slots {
 		r = append(r, s.rMin, s.rMax)
 	}
-	return r
+	return append(r, m.gameMode)
 }
 
 func encodeMods(t *testing.T, mods ...modRow) []byte {
@@ -146,12 +148,12 @@ const (
 
 func itemMods() []modRow {
 	return []modRow{
-		{id: "IncreasedLife1", name: "Healthy", domain: 1, generation: 1, level: 5, typ: 0, families: []int{0},
+		{id: "IncreasedLife1", name: "Healthy", domain: 1, generation: 1, level: 5, typ: 0, families: []int{0}, gameMode: 1,
 			implicit: []int{tagLife}, spawnTags: []int{tagShield, tagDefault}, spawn: []int32{0, 1000},
 			stats: []modStat{{stat: 1, min: 10, max: 24}}},
 		{id: "MonsterLife", domain: 3, generation: 3, typ: 0, stats: []modStat{{stat: 1, min: 1, max: 1}}},
 		// a stat slot left empty between two stats, and a Ruthless range
-		{id: "AllResistancesImplicitArmour1", domain: 1, generation: 3, level: 1, typ: 1, ruthless: true,
+		{id: "AllResistancesImplicitArmour1", domain: 1, generation: 3, level: 1, typ: 1, ruthless: true, gameMode: 2,
 			tags: []int{tagBodyArmour}, genTags: []int{tagDefault}, gen: []int32{50},
 			stats: []modStat{{stat: 3, min: 8, max: 12, rMin: 4, rMax: 6}, {stat: dattest.Null}, {stat: 4, min: 1, max: 2, rMin: 1, rMax: 1}}},
 		{id: "FlaskInstantRecovery", name: "Bubbling", domain: 2, generation: 1, level: 1, typ: 0},
@@ -219,10 +221,10 @@ func TestItems(t *testing.T) {
 		},
 	}
 	wantMods := []dataset.Mod{
-		{ID: "IncreasedLife1", Domain: 1, Generation: 1, Level: 5, Type: "IncreasedLife", Families: []string{"IncreasedLife"},
+		{ID: "IncreasedLife1", Domain: 1, Generation: 1, Level: 5, Type: "IncreasedLife", Families: []string{"IncreasedLife"}, GameMode: 1,
 			Stats: []dataset.ModStat{{Stat: 1, Min: 10, Max: 24, RuthlessMin: 10, RuthlessMax: 24}}, Tags: []string{"life"},
 			SpawnWeights: []dataset.TagWeight{{Tag: "shield", Weight: 0}, {Tag: "default", Weight: 1000}}},
-		{ID: "AllResistancesImplicitArmour1", Domain: 1, Generation: 3, Level: 1, Type: "AllResistances",
+		{ID: "AllResistancesImplicitArmour1", Domain: 1, Generation: 3, Level: 1, Type: "AllResistances", GameMode: 2,
 			Stats: []dataset.ModStat{
 				{Stat: 3, Min: 8, Max: 12, RuthlessMin: 4, RuthlessMax: 6},
 				{Stat: 4, Min: 1, Max: 2, RuthlessMin: 1, RuthlessMax: 1},
@@ -290,6 +292,7 @@ func TestItemsErrors(t *testing.T) {
 			"has a second row"},
 		{"mod stat out of range", setMods(func(m []modRow) { m[0].stats[0].stat = 9 }), "Mods row 0: stat row 9 out of range"},
 		{"mod type out of range", setMods(func(m []modRow) { m[0].typ = 9 }), "ModType row 9 out of range"},
+		{"game mode out of range", setMods(func(m []modRow) { m[0].gameMode = 1 << 31 }), "Mods row 0: column GameMode: 2147483648 out of range"},
 		{"mod family out of range", setMods(func(m []modRow) { m[0].families = []int{9} }), "ModFamily row 9 out of range"},
 		{"spawn weights without tags", setMods(func(m []modRow) { m[0].spawn = []int32{1} }), "spawn weights: 2 tags, 1 weights"},
 		{"generation tag out of range", setMods(func(m []modRow) { m[0].genTags, m[0].gen = []int{9}, []int32{1} }),
