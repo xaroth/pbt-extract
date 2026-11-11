@@ -102,8 +102,8 @@ func flaskGame(t *testing.T) fstest.MapFS {
 		[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"},
 		[]any{"UtilityFlask", "Utility Flasks"}, []any{"Tincture", "Tinctures"})}
 	g["Data/BaseItemTypes.datc64"] = &fstest.MapFile{Data: encode(t, "BaseItemTypes", slices.Concat(itemBases(), gemBases(), [][]any{
-		{"Metadata/Items/Flasks/FlaskUtility5", 5, "Granite Flask", []int(nil), []int(nil)},
-		{"Metadata/Items/Tinctures/Tincture1", 6, "Prismatic Tincture", []int(nil), []int(nil)},
+		{"Metadata/Items/Flasks/FlaskUtility5", 5, "Granite Flask", []int(nil), []int(nil), "Metadata/Items/Flasks/AbstractUtilityFlask"},
+		{"Metadata/Items/Tinctures/Tincture1", 6, "Prismatic Tincture", []int(nil), []int(nil), "Metadata/Items/Tinctures/AbstractTincture"},
 	})...)}
 	g["Data/Flasks.datc64"] = &fstest.MapFile{Data: encode(t, "Flasks",
 		[]any{4, uint32(1), int32(2400), int32(0), int32(35), int32(30), dattest.Null, []int32(nil)},

@@ -133,10 +133,10 @@ var gemBase = len(itemBases())
 // not one the items group keeps.
 func gemBases() [][]any {
 	return [][]any{
-		{"Metadata/Items/Gems/SkillGemFireball", 1, "Fireball", []int(nil), []int(nil)},
-		{"Metadata/Items/Gems/SkillGemVaalFireball", 1, "Vaal Fireball", []int(nil), []int(nil)},
-		{"Metadata/Items/Gems/SupportGemEcho", 1, "Echo Support", []int(nil), []int(nil)},
-		{"Metadata/Items/Gems/SupportGemAwakenedEcho", 1, "", []int(nil), []int(nil)},
+		{"Metadata/Items/Gems/SkillGemFireball", 1, "Fireball", []int(nil), []int(nil), ""},
+		{"Metadata/Items/Gems/SkillGemVaalFireball", 1, "Vaal Fireball", []int(nil), []int(nil), ""},
+		{"Metadata/Items/Gems/SupportGemEcho", 1, "Echo Support", []int(nil), []int(nil), ""},
+		{"Metadata/Items/Gems/SupportGemAwakenedEcho", 1, "", []int(nil), []int(nil), ""},
 	}
 }
 

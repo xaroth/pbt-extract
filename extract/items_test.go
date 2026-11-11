@@ -1,6 +1,8 @@
 package extract_test
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -23,7 +25,8 @@ const itemTables = `
 		{"name": "ItemClassesKey", "type": "foreignrow", "references": {"table": "ItemClasses"}},
 		{"name": "Name", "type": "string"},
 		{"name": "Implicit_ModsKeys", "type": "foreignrow", "array": true, "references": {"table": "Mods"}},
-		{"name": "TagsKeys", "type": "foreignrow", "array": true, "references": {"table": "Tags"}}]},
+		{"name": "TagsKeys", "type": "foreignrow", "array": true, "references": {"table": "Tags"}},
+		{"name": "InheritsFrom", "type": "string"}]},
 	{"name": "ArmourTypes", "columns": [
 		{"name": "BaseItemTypesKey", "type": "foreignrow", "references": {"table": "BaseItemTypes"}},
 		{"name": "ArmourMin", "type": "i32"}, {"name": "ArmourMax", "type": "i32"},
@@ -144,7 +147,63 @@ const (
 	tagBodyArmour
 	tagLife
 	tagShield
+	tagStrArmour
+	tagSceptre
+	tagJewel
+	tagWarstaff
 )
+
+// itemTags are the Tags rows of the item fixture: those named above, then those only item
+// templates name.
+var itemTags = []string{"default", "body_armour", "life", "shield", "str_armour", "sceptre", "jewel", "warstaff",
+	"armour", "helmet", "weapon", "onehand", "twohand", "one_hand_weapon", "two_hand_weapon", "axe", "dagger",
+	"attack_dagger", "wand", "ranged", "staff", "attack_staff", "bow", "ring", "flask", "life_flask",
+	"utility_flask", "tincture"}
+
+// itemTemplates are the item templates of the test game by path, without .it: the template each
+// extends and its tags. They follow the game's chains.
+var itemTemplates = map[string]struct {
+	extends string
+	tags    []string
+}{
+	"Metadata/Items/Item":                                                {"nothing", []string{"default"}},
+	"Metadata/Items/Equipment":                                           {"Metadata/Items/Item", nil},
+	"Metadata/Items/Armours/AbstractArmour":                              {"Metadata/Items/Equipment", []string{"armour"}},
+	"Metadata/Items/Armours/BodyArmours/AbstractBodyArmour":              {"Metadata/Items/Armours/AbstractArmour", []string{"body_armour"}},
+	"Metadata/Items/Armours/Helmets/AbstractHelmet":                      {"Metadata/Items/Armours/AbstractArmour", []string{"helmet"}},
+	"Metadata/Items/Armours/Shields/AbstractShield":                      {"Metadata/Items/Armours/AbstractArmour", []string{"shield"}},
+	"Metadata/Items/Weapons/AbstractWeapon":                              {"Metadata/Items/Equipment", []string{"weapon"}},
+	"Metadata/Items/Weapons/OneHandWeapons/AbstractOneHandWeapon":        {"Metadata/Items/Weapons/AbstractWeapon", []string{"onehand"}},
+	"Metadata/Items/Weapons/OneHandWeapons/OneHandMaces/AbstractSceptre": {"Metadata/Items/Weapons/OneHandWeapons/AbstractOneHandWeapon", []string{"sceptre", "one_hand_weapon"}},
+	"Metadata/Items/Weapons/OneHandWeapons/Daggers/AbstractDagger": {"Metadata/Items/Weapons/OneHandWeapons/AbstractOneHandWeapon",
+		[]string{"dagger", "attack_dagger", "one_hand_weapon"}},
+	"Metadata/Items/Weapons/OneHandWeapons/Wands/AbstractWand": {"Metadata/Items/Weapons/OneHandWeapons/AbstractOneHandWeapon",
+		[]string{"wand", "ranged", "one_hand_weapon"}},
+	"Metadata/Items/Weapons/TwoHandWeapons/AbstractTwoHandWeapon": {"Metadata/Items/Weapons/AbstractWeapon", []string{"twohand"}},
+	"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/AbstractTwoHandAxe": {"Metadata/Items/Weapons/TwoHandWeapons/AbstractTwoHandWeapon",
+		[]string{"axe", "two_hand_weapon"}},
+	"Metadata/Items/Weapons/TwoHandWeapons/Staves/AbstractWarstaff": {"Metadata/Items/Weapons/TwoHandWeapons/AbstractTwoHandWeapon",
+		[]string{"staff", "attack_staff", "two_hand_weapon"}},
+	"Metadata/Items/Weapons/TwoHandWeapons/Bows/AbstractBow": {"Metadata/Items/Weapons/TwoHandWeapons/AbstractTwoHandWeapon",
+		[]string{"bow", "ranged", "two_hand_weapon"}},
+	"Metadata/Items/Rings/AbstractRing":          {"Metadata/Items/Equipment", []string{"ring"}},
+	"Metadata/Items/Jewels/AbstractJewel":        {"Metadata/Items/Item", nil},
+	"Metadata/Items/Flasks/AbstractFlask":        {"Metadata/Items/Item", []string{"flask"}},
+	"Metadata/Items/Flasks/AbstractLifeFlask":    {"Metadata/Items/Flasks/AbstractFlask", []string{"life_flask"}},
+	"Metadata/Items/Flasks/AbstractUtilityFlask": {"Metadata/Items/Flasks/AbstractFlask", []string{"utility_flask"}},
+	"Metadata/Items/Tinctures/AbstractTincture":  {"Metadata/Items/Item", []string{"tincture"}},
+}
+
+// itemTemplate is the text of an item template.
+func itemTemplate(extends string, tags ...string) []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "version 3\nabstract\nextends %q\n\nBase\n{\n", extends)
+	for _, tag := range tags {
+		fmt.Fprintf(&b, "\ttag = %q\n", tag)
+	}
+	b.WriteString("}\n")
+	return utf16le(b.String())
+}
 
 func itemMods() []modRow {
 	return []modRow{
@@ -165,18 +224,25 @@ func itemMods() []modRow {
 // itemBases are the BaseItemTypes rows of items; gemBases follow them.
 func itemBases() [][]any {
 	return [][]any{
-		{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{2}, []int{tagBodyArmour}},
-		{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil)},
-		{"Metadata/Items/Armours/Shields/ShieldInt16", 2, "Titanium Spirit Shield", []int(nil), []int{tagShield}},
-		{"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", 3, "Sundering Axe", []int(nil), []int(nil)},
-		{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil)},
+		{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{2}, []int{tagBodyArmour},
+			"Metadata/Items/Armours/BodyArmours/AbstractBodyArmour"},
+		{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil), "Metadata/Items/Currency/StackableCurrency"},
+		{"Metadata/Items/Armours/Shields/ShieldInt16", 2, "Titanium Spirit Shield", []int(nil), []int{tagShield},
+			"Metadata/Items/Armours/Shields/AbstractShield"},
+		{"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", 3, "Sundering Axe", []int(nil), []int(nil),
+			"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/AbstractTwoHandAxe"},
+		{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil), "Metadata/Items/Flasks/AbstractLifeFlask"},
 	}
 }
 
 func itemGame(t *testing.T, g fstest.MapFS) {
 	t.Helper()
+	tagRows := make([][]any, len(itemTags))
+	for i, tag := range itemTags {
+		tagRows[i] = []any{tag}
+	}
 	files := map[string][]byte{
-		"Tags": encode(t, "Tags", []any{"default"}, []any{"body_armour"}, []any{"life"}, []any{"shield"}),
+		"Tags": encode(t, "Tags", tagRows...),
 		"ItemClasses": encode(t, "ItemClasses",
 			[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
 			[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"}),
@@ -197,6 +263,9 @@ func itemGame(t *testing.T, g fstest.MapFS) {
 	for name, b := range files {
 		g["Data/"+name+".datc64"] = &fstest.MapFile{Data: b}
 	}
+	for path, it := range itemTemplates {
+		g[path+".it"] = &fstest.MapFile{Data: itemTemplate(it.extends, it.tags...)}
+	}
 }
 
 func TestItems(t *testing.T) {
@@ -207,16 +276,17 @@ func TestItems(t *testing.T) {
 	}
 	wantItems := &dataset.Items{
 		Classes: []dataset.ItemClass{{ID: "Body Armour"}, {ID: "Shield"}, {ID: "Two Hand Axe"}, {ID: "LifeFlask"}},
-		Tags:    []string{"default", "body_armour", "life", "shield"},
+		Tags:    itemTags,
 		Bases: []dataset.ItemBase{
 			{ID: "Metadata/Items/Armours/BodyArmours/BodyStr15", Class: "Body Armour",
-				Implicits: []string{"AllResistancesImplicitArmour1"}, Tags: []string{"body_armour"},
+				Implicits: []string{"AllResistancesImplicitArmour1"}, Tags: []string{"body_armour", "armour", "default"},
 				Armour: &dataset.ArmourValues{Armour: dataset.ValueRange{Min: 711, Max: 782}, MovementSpeed: -5}},
-			{ID: "Metadata/Items/Armours/Shields/ShieldInt16", Class: "Shield", Tags: []string{"shield"},
+			{ID: "Metadata/Items/Armours/Shields/ShieldInt16", Class: "Shield", Tags: []string{"shield", "armour", "default"},
 				Armour: &dataset.ArmourValues{EnergyShield: dataset.ValueRange{Min: 67, Max: 77}, MovementSpeed: -3}, Block: 25},
 			{ID: "Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", Class: "Two Hand Axe",
+				Tags:   []string{"axe", "two_hand_weapon", "twohand", "weapon", "default"},
 				Weapon: &dataset.WeaponValues{PhysicalDamage: dataset.ValueRange{Min: 74, Max: 155}, AttackTime: 769, CriticalChance: 500, Range: 13}},
-			{ID: "Metadata/Items/Flasks/FlaskLife11", Class: "LifeFlask",
+			{ID: "Metadata/Items/Flasks/FlaskLife11", Class: "LifeFlask", Tags: []string{"life_flask", "flask", "default"},
 				Flask: &dataset.FlaskValues{Kind: dataset.LifeFlask, Life: 2400, Duration: 35, MaxCharges: 45, ChargesPerUse: 15}},
 		},
 	}
@@ -259,6 +329,64 @@ func TestItems(t *testing.T) {
 	}
 }
 
+// TestItemBaseTags checks that a base has its own tags and those of its template chain, for a
+// base of each class whose spawn tags come mostly from templates.
+func TestItemBaseTags(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	classes := []string{"Helmet", "Ring", "Jewel", "Sceptre", "Dagger", "Warstaff", "Bow", "Wand", "Tincture"}
+	classRows := [][]any{
+		{"Body Armour", "Body Armours"}, {"Currency", "Currency"}, {"Shield", "Shields"},
+		{"Two Hand Axe", "Two Hand Axes"}, {"LifeFlask", "Life Flasks"},
+	}
+	for _, c := range classes {
+		classRows = append(classRows, []any{c, c})
+	}
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses", classRows...)}
+	class := func(name string) int { return 5 + slices.Index(classes, name) }
+	base := func(id, class int, tags []int, template string) []any {
+		return []any{fmt.Sprintf("Base%d", id), class, "", []int(nil), tags, template}
+	}
+	g["Data/BaseItemTypes.datc64"] = &fstest.MapFile{Data: encode(t, "BaseItemTypes", slices.Concat(itemBases(), gemBases(), [][]any{
+		base(0, class("Helmet"), []int{tagStrArmour}, "Metadata/Items/Armours/Helmets/AbstractHelmet"),
+		base(1, class("Ring"), nil, "Metadata/Items/Rings/AbstractRing"),
+		base(2, class("Jewel"), []int{tagJewel}, "Metadata/Items/Jewels/AbstractJewel"),
+		// sceptre is also the template's: listed once
+		base(3, class("Sceptre"), []int{tagSceptre}, "Metadata/Items/Weapons/OneHandWeapons/OneHandMaces/AbstractSceptre"),
+		base(4, class("Dagger"), nil, "Metadata/Items/Weapons/OneHandWeapons/Daggers/AbstractDagger"),
+		base(5, class("Warstaff"), []int{tagWarstaff}, "Metadata/Items/Weapons/TwoHandWeapons/Staves/AbstractWarstaff"),
+		base(6, class("Bow"), nil, "Metadata/Items/Weapons/TwoHandWeapons/Bows/AbstractBow"),
+		base(7, class("Wand"), nil, "Metadata/Items/Weapons/OneHandWeapons/Wands/AbstractWand"),
+		base(8, class("Tincture"), nil, "Metadata/Items/Tinctures/AbstractTincture"),
+	})...)}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := map[string][]string{
+		"Metadata/Items/Armours/BodyArmours/BodyStr15":                   {"body_armour", "armour", "default"},
+		"Metadata/Items/Armours/Shields/ShieldInt16":                     {"shield", "armour", "default"},
+		"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15": {"axe", "two_hand_weapon", "twohand", "weapon", "default"},
+		"Metadata/Items/Flasks/FlaskLife11":                              {"life_flask", "flask", "default"},
+		"Base0":                                                          {"str_armour", "helmet", "armour", "default"},
+		"Base1":                                                          {"ring", "default"},
+		"Base2":                                                          {"jewel", "default"},
+		"Base3":                                                          {"sceptre", "one_hand_weapon", "onehand", "weapon", "default"},
+		"Base4":                                                          {"dagger", "attack_dagger", "one_hand_weapon", "onehand", "weapon", "default"},
+		"Base5":                                                          {"warstaff", "staff", "attack_staff", "two_hand_weapon", "twohand", "weapon", "default"},
+		"Base6":                                                          {"bow", "ranged", "two_hand_weapon", "twohand", "weapon", "default"},
+		"Base7":                                                          {"wand", "ranged", "one_hand_weapon", "onehand", "weapon", "default"},
+		"Base8":                                                          {"tincture", "default"},
+	}
+	tags := map[string][]string{}
+	for _, b := range got.Items.Bases {
+		tags[b.ID] = b.Tags
+	}
+	if diff := cmp.Diff(want, tags); diff != "" {
+		t.Errorf("base tags mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestItemsErrors(t *testing.T) {
 	t.Parallel()
 	setMods := func(edit func([]modRow)) func(*testing.T, fstest.MapFS) {
@@ -280,10 +408,16 @@ func TestItemsErrors(t *testing.T) {
 	}{
 		{"missing table", func(_ *testing.T, g fstest.MapFS) { delete(g, "Data/Mods.datc64") }, "Mods.datc64"},
 		{"implicit not an item mod", set("BaseItemTypes",
-			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{1}, []int(nil)}),
+			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{1}, []int(nil), "Metadata/Items/Item"}),
 			"implicit mod row 1 is not an item mod"},
-		{"base class out of range", set("BaseItemTypes", []any{"X", 9, "X", []int(nil), []int(nil)}), "ItemClasses row 9 out of range"},
-		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{9}}), "Tags row 9 out of range"},
+		{"base class out of range", set("BaseItemTypes", []any{"X", 9, "X", []int(nil), []int(nil), "Metadata/Items/Item"}), "ItemClasses row 9 out of range"},
+		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{99}, "Metadata/Items/Item"}), "Tags row 99 out of range"},
+		{"base without template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), ""}), "BaseItemTypes row 0: no item template"},
+		{"missing template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), "Metadata/Items/Nope"}),
+			"item template Metadata/Items/Nope"},
+		{"template tag not in Tags", func(_ *testing.T, g fstest.MapFS) {
+			g["Metadata/Items/Item.it"] = &fstest.MapFile{Data: itemTemplate("nothing", "unknown")}
+		}, `tag "unknown" is not in Tags`},
 		{"values for a base out of range", set("ShieldTypes", []any{9, int32(25)}), "ShieldTypes row 0: base row 9 out of range"},
 		{"second values row", set("ShieldTypes", []any{2, int32(25)}, []any{2, int32(26)}), "base 2 has a second row"},
 		{"flask without charges", set("ComponentCharges"), "has no ComponentCharges row"},
@@ -295,8 +429,8 @@ func TestItemsErrors(t *testing.T) {
 		{"game mode out of range", setMods(func(m []modRow) { m[0].gameMode = 1 << 31 }), "Mods row 0: column GameMode: 2147483648 out of range"},
 		{"mod family out of range", setMods(func(m []modRow) { m[0].families = []int{9} }), "ModFamily row 9 out of range"},
 		{"spawn weights without tags", setMods(func(m []modRow) { m[0].spawn = []int32{1} }), "spawn weights: 2 tags, 1 weights"},
-		{"generation tag out of range", setMods(func(m []modRow) { m[0].genTags, m[0].gen = []int{9}, []int32{1} }),
-			"generation weights: Tags row 9 out of range"},
+		{"generation tag out of range", setMods(func(m []modRow) { m[0].genTags, m[0].gen = []int{99}, []int32{1} }),
+			"generation weights: Tags row 99 out of range"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
