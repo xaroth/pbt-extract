@@ -1,6 +1,7 @@
 // Package edition holds what pbt-extract knows about a game edition that its game data does
-// not say, such as constants and names for columns dat-schema leaves unnamed, each with a note
-// and a source. Each edition has a folder: <game>/constants.json and <game>/columns.json.
+// not say, such as constants, names for columns dat-schema leaves unnamed and totem links, each
+// with a note and a source. Each edition has a folder: <game>/constants.json,
+// <game>/columns.json and <game>/totems.json.
 package edition
 
 import (
@@ -20,6 +21,17 @@ type Edition struct {
 	Name      string
 	Constants []Constant
 	Columns   []ColumnName
+	Totems    []Totem
+}
+
+// Totem is a link the game data does not hold: the SkillTotemVariations key whose varieties
+// the totems of a support use.
+type Totem struct {
+	// GrantedEffect is the support's GrantedEffects.Id.
+	GrantedEffect string `json:"granted_effect"`
+	Totem         int32  `json:"totem"`
+	Note          string `json:"note"`
+	Source        string `json:"source"`
 }
 
 // Constant is an edition constant, as Value per Per.
@@ -86,6 +98,18 @@ func Load(game string) (*Edition, error) {
 			Source: k.Source,
 		})
 	}
+	var t struct {
+		Totems []Totem `json:"totems"`
+	}
+	if err := readJSON(game, "totems.json", &t); err != nil {
+		return nil, err
+	}
+	for _, k := range t.Totems {
+		if k.GrantedEffect == "" || k.Note == "" || k.Source == "" {
+			return nil, fmt.Errorf("%s/totems.json: totem of %q needs granted_effect, note and source", game, k.GrantedEffect)
+		}
+	}
+	e.Totems = t.Totems
 	return e, nil
 }
 

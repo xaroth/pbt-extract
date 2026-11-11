@@ -113,14 +113,11 @@ func buffDefinition(row buffDefinitionRow, nStats int) (dataset.BuffDefinition, 
 		{"Maximum_StatsKey", row.MaximumStat, &d.MaximumStat}, {"Current_StatsKey", row.CurrentStat, &d.CurrentStat},
 		{"MinStat", row.MinimumStat, &d.MinimumStat},
 	} {
-		if _, ok := s.ref.Row(); !ok {
-			continue
-		}
-		h, err := statHandles([]dat.Ref{s.ref}, nStats)
+		h, err := optionalStat(s.ref, nStats)
 		if err != nil {
 			return d, fmt.Errorf("column %s: %w", s.col, err)
 		}
-		*s.dst = &h[0]
+		*s.dst = h
 	}
 	return d, nil
 }

@@ -2,7 +2,6 @@
 package extract
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -25,6 +24,8 @@ type Input struct {
 	Schema    *dat.Schema
 	Trees     []Variant
 	Constants []dataset.Constant
+	// EditionTotems are the totem links the game data does not hold.
+	EditionTotems []dataset.EditionTotem
 }
 
 // Dataset builds the tables of one game version. The caller fills in the manifest.
@@ -91,6 +92,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		return nil, err
 	}
 	text.GemNames, text.SkillNames = skillText.gems, skillText.skills
+	if d.Monsters, text.MonsterNames, err = monsters(r, schema, handles, in.EditionTotems); err != nil {
+		return nil, err
+	}
 	if len(in.Trees) > 0 {
 		tt, err := readTreeTables(r, schema, d.Stats)
 		if err != nil {
@@ -160,22 +164,8 @@ func character(r ot.Reader, t table, row int, handles map[string]uint32) (datase
 		}
 	}
 
-	stats, err := ot.Stats(r, c.ID)
-	if err != nil {
-		return c, err
-	}
-	for id, v := range stats {
-		h, ok := handles[id]
-		if !ok {
-			return c, fmt.Errorf("%s.ot: stat %s not in Stats", c.ID, id)
-		}
-		if int(int32(v)) != v {
-			return c, fmt.Errorf("%s.ot: stat %s value %d overflows int32", c.ID, id, v)
-		}
-		c.Stats = append(c.Stats, dataset.StatValue{Stat: h, Value: int32(v)})
-	}
-	slices.SortFunc(c.Stats, func(a, b dataset.StatValue) int { return cmp.Compare(a.Stat, b.Stat) })
-	return c, nil
+	c.Stats, err = templateStats(r, c.ID, handles)
+	return c, err
 }
 
 type table struct {

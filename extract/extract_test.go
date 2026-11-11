@@ -18,7 +18,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + `
+const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + `
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Characters", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
@@ -171,6 +171,7 @@ func game(t *testing.T) fstest.MapFS {
 	itemGame(t, g)
 	buffGame(t, g)
 	maps.Copy(g, skillFiles(t, skillRows()))
+	maps.Copy(g, monsterFiles(t, monsterRows()))
 	return g
 }
 
@@ -262,10 +263,10 @@ func TestDataset(t *testing.T) {
 			},
 		}},
 	}
-	// TestItems, TestSkills and TestBuffs check their groups.
+	// TestItems, TestSkills, TestBuffs and TestMonsters check their groups.
 	ignore := cmp.Options{
-		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames", "BuffNames"),
-		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills", "Buffs"),
+		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames", "BuffNames", "MonsterNames"),
+		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills", "Buffs", "Monsters"),
 	}
 	if diff := cmp.Diff(want, got, ignore, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)

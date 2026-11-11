@@ -1,0 +1,22 @@
+{
+  "totems": [
+    {
+      "granted_effect": "SupportSpellTotem",
+      "totem": 1,
+      "note": "Spell Totem Support summons a totem, but neither its stats nor a skill table name a SkillTotemVariations key. SkillTotemsKey 1, 2 and 3 (StrengthTotem, DexterityTotem, IntelligenceTotem) are used by no ActiveSkills row, and every skin of the three has the same monster type, multipliers, tags, skills and mods; only the model differs. Key 1 stands for all three. Which model the game shows follows the supported gem's colour, which changes no value.",
+      "source": "Our reading of GrantedEffects, ActiveSkills, SkillTotemVariations and MonsterVarieties in 3.28.0.16 and 3.29.3.3; the model by gem colour as Path of Building CalcActiveSkill.lua chooses it"
+    },
+    {
+      "granted_effect": "SupportBallistaTotem",
+      "totem": 12,
+      "note": "Ballista Totem Support adds the TotemsAreBallistae skill type, but neither its stats nor a skill table name a SkillTotemVariations key. Key 12 holds the ballista totems (SnipeTotem and its skins), the key of Siege Ballista. Skin 0 of key 12 has the same monster type, multipliers, skills and mods as skin 0 of keys 1 to 3; it lacks only the mud_blood tag.",
+      "source": "Our reading of GrantedEffects, ActiveSkills, SkillTotemVariations and MonsterVarieties in 3.28.0.16 and 3.29.3.3"
+    },
+    {
+      "granted_effect": "SupportEarthbreaker",
+      "totem": 20,
+      "note": "Earthbreaker Support's stat set has the implicit stat support_totem_type_override_to_support_slam_ancestor, which names Totems/SupportAncestorSlamTotem, skin 0 of key 20. Key 20 is used by no ActiveSkills row. Its varieties have life multiplier 120% and monster type AncestorTotem, where keys 1 to 3 have 100% and Totem.",
+      "source": "Our reading of GrantedEffectStatSets, ActiveSkills, SkillTotemVariations and MonsterVarieties in 3.28.0.16 and 3.29.3.3"
+    }
+  ]
+}

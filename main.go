@@ -159,6 +159,9 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 		}
 		bi.Trees = append(bi.Trees, extract.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
 	}
+	for _, t := range ed.Totems {
+		bi.EditionTotems = append(bi.EditionTotems, dataset.EditionTotem{GrantedEffect: t.GrantedEffect, Totem: t.Totem, Source: t.Source})
+	}
 	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})
 	}
