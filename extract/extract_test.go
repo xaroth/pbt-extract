@@ -130,7 +130,7 @@ const sdDir = "Metadata/StatDescriptions/"
 
 func game(t *testing.T) fstest.MapFS {
 	t.Helper()
-	return fstest.MapFS{
+	g := fstest.MapFS{
 		"Data/Stats.datc64": {Data: encode(t, "Stats",
 			[]any{"level"}, []any{"life_per_level"}, []any{"base_speed"}, []any{"base_strength"}, []any{"aura_damage_+%"},
 		)},
@@ -170,6 +170,10 @@ func game(t *testing.T) fstest.MapFS {
 		sdDir + "passive_skill_stat_descriptions.txt":      {Data: utf16le("include \"" + sdDir + "stat_descriptions.txt\"\n")},
 		sdDir + "stat_descriptions.txt":                    {Data: utf16le("description\n\t1 base_strength\n\t1\n\t\t# \"{0:+d} to Strength\"\n")},
 	}
+	for _, f := range extract.SkillDescriptions() {
+		g[f] = &fstest.MapFile{Data: utf16le("include \"" + sdDir + "stat_descriptions.txt\"\n")}
+	}
+	return g
 }
 
 func export() *treeexport.Export {
@@ -267,7 +271,9 @@ func TestDataset(t *testing.T) {
 	for _, s := range got.Texts[0].Descriptions {
 		scopes = append(scopes, s.Name)
 	}
-	wantScopes := []string{extract.DescriptionsRoot, sdDir + "passive_skill_stat_descriptions.txt", sdDir + "stat_descriptions.txt"}
+	// stat_descriptions.txt, which every skill file includes, is loaded once
+	wantScopes := append([]string{extract.DescriptionsRoot, sdDir + "passive_skill_stat_descriptions.txt", sdDir + "stat_descriptions.txt"},
+		extract.SkillDescriptions()...)
 	if diff := cmp.Diff(wantScopes, scopes); diff != "" {
 		t.Errorf("description scopes mismatch (-want +got):\n%s", diff)
 	}
@@ -292,6 +298,7 @@ func TestDatasetErrors(t *testing.T) {
 		{name: "missing ot", game: func(_ *testing.T, g fstest.MapFS) { delete(g, "Metadata/Characters/Str/Str.ot") }},
 		{name: "missing table file", game: func(_ *testing.T, g fstest.MapFS) { delete(g, "Data/Characters.datc64") }},
 		{name: "missing descriptions", game: func(_ *testing.T, g fstest.MapFS) { delete(g, sdDir+"stat_descriptions.txt") }},
+		{name: "missing skill descriptions", game: func(_ *testing.T, g fstest.MapFS) { delete(g, extract.SkillDescriptions()[0]) }},
 		{name: "row size mismatch", game: func(t *testing.T, g fstest.MapFS) {
 			wider := `{"version": 7, "tables": [{"name": "Stats", "columns": [{"name": "Id", "type": "string"}, {"name": "X", "type": "i32"}]}]}`
 			g["Data/Stats.datc64"] = &fstest.MapFile{Data: encodeAs(t, wider, "Stats", []any{"level", int32(1)})}

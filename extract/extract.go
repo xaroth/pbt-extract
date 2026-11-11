@@ -14,8 +14,8 @@ import (
 	"github.com/xaroth/pbt-extract/statdesc"
 )
 
-// DescriptionsRoot is the stat description file whose include chain datasets carry. It
-// includes passive_skill_stat_descriptions.txt, which includes stat_descriptions.txt.
+// DescriptionsRoot is the stat description file of the passive tree, whose include chain datasets
+// carry. It includes passive_skill_stat_descriptions.txt, which includes stat_descriptions.txt.
 const DescriptionsRoot = "Metadata/StatDescriptions/passive_skill_aura_stat_descriptions.txt"
 
 // Input is what a dataset is built from.
@@ -74,7 +74,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		text.CharacterNames = append(text.CharacterNames, dataset.Name{ID: c.ID, Name: name})
 	}
 
-	if text.Descriptions, err = statdesc.Load(r, DescriptionsRoot); err != nil {
+	if text.Descriptions, err = statdesc.Load(r, append([]string{DescriptionsRoot}, SkillDescriptions()...)...); err != nil {
 		return nil, err
 	}
 	d.Constants = in.Constants
