@@ -19,6 +19,41 @@ type Export struct {
 		Total      int32 `json:"totalPoints"`
 		Ascendancy int32 `json:"ascendancyPoints"`
 	} `json:"points"`
+	Groups    map[string]Group `json:"groups"`
+	Constants struct {
+		SkillsPerOrbit []uint32  `json:"skillsPerOrbit"`
+		OrbitRadii     []float64 `json:"orbitRadii"`
+	} `json:"constants"`
+	// ExtraImages are the class illustrations, keyed by class index.
+	ExtraImages map[string]ExtraImage `json:"extraImages"`
+	MinX        float64               `json:"min_x"`
+	MinY        float64               `json:"min_y"`
+	MaxX        float64               `json:"max_x"`
+	MaxY        float64               `json:"max_y"`
+}
+
+// Group is a cluster of nodes drawn around one centre.
+type Group struct {
+	X          float64     `json:"x"`
+	Y          float64     `json:"y"`
+	Orbits     []uint8     `json:"orbits"`
+	Background *Background `json:"background"`
+	IsProxy    bool        `json:"isProxy"`
+}
+
+// Background is a group's background art.
+type Background struct {
+	Image       string  `json:"image"`
+	IsHalfImage bool    `json:"isHalfImage"`
+	OffsetX     float64 `json:"offsetX"`
+	OffsetY     float64 `json:"offsetY"`
+}
+
+// ExtraImage is an illustration drawn at a point of the tree.
+type ExtraImage struct {
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	Image string  `json:"image"`
 }
 
 // Class is a character class entry; its index is the class id.
@@ -55,6 +90,14 @@ type Node struct {
 	Out                  []string        `json:"out"`
 	In                   []string        `json:"in"`
 	GrantedPassivePoints int32           `json:"grantedPassivePoints"`
+	// Group is 0 for a node not drawn on the tree; group keys start at 1.
+	Group             uint32 `json:"group"`
+	Orbit             uint8  `json:"orbit"`
+	OrbitIndex        uint16 `json:"orbitIndex"`
+	Icon              string `json:"icon"`
+	InactiveIcon      string `json:"inactiveIcon"`
+	ActiveIcon        string `json:"activeIcon"`
+	ActiveEffectImage string `json:"activeEffectImage"`
 }
 
 // MasteryEffect is one selectable mastery effect.

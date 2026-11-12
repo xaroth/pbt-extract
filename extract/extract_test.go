@@ -184,12 +184,26 @@ func export() *treeexport.Export {
 		}},
 		AlternateAscendancies: []treeexport.Ascendancy{{ID: "Bloodline", Name: "Bloodline"}},
 		Nodes: map[string]treeexport.Node{
-			"1": {Skill: 1, Name: "MARAUDER", ClassStartIndex: &start, Out: []string{"2"}},
-			"2": {Skill: 2, Name: "Might", IsNotable: true, AscendancyName: "Juggernaut", In: []string{"1"}, Out: []string{"1"}},
-			"3": {Skill: 3, Name: "Mastery", IsMastery: true, MasteryEffects: []treeexport.MasteryEffect{{Effect: 7}}},
+			"1": {Skill: 1, Name: "MARAUDER", ClassStartIndex: &start, Out: []string{"2"}, Group: 2, Icon: "Art/start.png"},
+			"2": {
+				Skill: 2, Name: "Might", IsNotable: true, AscendancyName: "Juggernaut", In: []string{"1"}, Out: []string{"1"},
+				Group: 10, Orbit: 2, OrbitIndex: 2, Icon: "Art/might.png",
+			},
+			"3": {
+				Skill: 3, Name: "Mastery", IsMastery: true, MasteryEffects: []treeexport.MasteryEffect{{Effect: 7}},
+				Icon: "Art/mastery.png", InactiveIcon: "Art/inactive.png", ActiveIcon: "Art/active.png", ActiveEffectImage: "Art/effect.png",
+			},
 		},
 		JewelSlots: []uint32{2},
+		Groups: map[string]treeexport.Group{
+			"2":  {X: -2824.29, Y: 1642.43, Orbits: []uint8{}},
+			"10": {X: 100, Y: -50, Orbits: []uint8{0, 2}, Background: &treeexport.Background{Image: "PSGroupBackground3", IsHalfImage: true}, IsProxy: true},
+		},
+		ExtraImages: map[string]treeexport.ExtraImage{"0": {X: -4560.69, Y: 292.425, Image: "Art/2DArt/BaseClassIllustrations/Str.png"}},
+		MinX:        -14159, MinY: -10689, MaxX: 12430, MaxY: 10900,
 	}
+	e.Constants.SkillsPerOrbit = []uint32{1, 6, 16, 16, 40, 72}
+	e.Constants.OrbitRadii = []float64{0, 82, 162, 335, 493, 662}
 	e.Points.Total, e.Points.Ascendancy = 123, 8
 	return e
 }
@@ -263,10 +277,10 @@ func TestDataset(t *testing.T) {
 			},
 		}},
 	}
-	// TestItems, TestSkills, TestBuffs and TestMonsters check their groups.
+	// TestLayouts, TestItems, TestSkills, TestBuffs and TestMonsters check their groups.
 	ignore := cmp.Options{
 		cmpopts.IgnoreFields(dataset.Text{}, "Descriptions", "ItemClassNames", "BaseNames", "ModNames", "GemNames", "SkillNames", "BuffNames", "MonsterNames"),
-		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills", "Buffs", "Monsters"),
+		cmpopts.IgnoreFields(dataset.Dataset{}, "Items", "Mods", "Skills", "Buffs", "Monsters", "Layouts"),
 	}
 	if diff := cmp.Diff(want, got, ignore, cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("Dataset mismatch (-want +got):\n%s", diff)
