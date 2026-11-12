@@ -32,7 +32,8 @@ const sample = `{
 	"min_x": -14159, "min_y": -10689, "max_x": 12430.5, "max_y": 10900,
 	"jewelSlots": [4],
 	"points": {"totalPoints": 123, "ascendancyPoints": 8},
-	"sprites": {"ignored": true}
+	"sprites": {"mastery": {"0.5": {"filename": "https://example.com/mastery-4.png?1", "w": 10, "h": 20,
+		"coords": {"Art/mastery.png": {"x": 1, "y": 2, "w": 3, "h": 4}, "Art/bad.png": {"x": [45, 0], "y": 0, "w": 3, "h": 4}}}}}
 }`
 
 func TestParse(t *testing.T) {
@@ -67,6 +68,11 @@ func TestParse(t *testing.T) {
 		ExtraImages: map[string]treeexport.ExtraImage{"1": {X: -4560.69, Y: 292.425, Image: "Art/2DArt/BaseClassIllustrations/Str.png"}},
 		MinX:        -14159, MinY: -10689, MaxX: 12430.5, MaxY: 10900,
 	}
+	want.Sprites = map[string]map[string]treeexport.Sprite{"mastery": {"0.5": {
+		Filename: "https://example.com/mastery-4.png?1", W: 10, H: 20,
+		Coords:    map[string]treeexport.Rect{"Art/mastery.png": {X: 1, Y: 2, W: 3, H: 4}},
+		Malformed: []string{"Art/bad.png"},
+	}}}
 	want.Points.Total, want.Points.Ascendancy = 123, 8
 	want.Constants.SkillsPerOrbit = []uint32{1, 6, 16, 16, 40}
 	want.Constants.OrbitRadii = []float64{0, 82, 162, 335, 493}
