@@ -267,9 +267,9 @@ type itemNames struct {
 
 // items reads the items group: the classes in itemClasses with their bases and their values,
 // the mods of modDomains, and the bench crafts and essences that add one of them to items of
-// those classes.
-// All are in table order. A base's tags are its own, then those of
-// its item template chain (see ot.ItemTags). nStats is the number of rows in Stats.
+// those classes. Classes, bases, mods and bench crafts are in table order, essence mods in the
+// order essences first add them. A base's tags are its own, then those of its item template
+// chain (see ot.ItemTags). nStats is the number of rows in Stats.
 func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
 	tags, err := readIDs(r, s, "Tags")
@@ -438,8 +438,9 @@ func keptClasses(refs []dat.Ref, classes []itemClassRow) ([]string, error) {
 }
 
 // essenceMods reads the mods essences add, each once with the classes of every essence that
-// adds it, in the order essences first add them. Classes are in ItemClasses order and limited
-// to itemClasses. modIDs holds the id of each kept Mods row.
+// adds it, in the order essences first add them. Classes are in ItemClasses order; a class not
+// in ItemClasses is left out. classMods names only classes in itemClasses. modIDs holds the id
+// of each kept Mods row.
 func essenceMods(r ot.Reader, s *dat.Schema, classes []itemClassRow, modIDs map[int]string) ([]dataset.ModClasses, error) {
 	rows, err := readRows[essenceRow](r, s, "Essences")
 	if err != nil {
@@ -467,7 +468,7 @@ func essenceMods(r ot.Reader, s *dat.Schema, classes []itemClassRow, modIDs map[
 				out = append(out, dataset.ModClasses{Mod: id})
 			}
 			for _, k := range cm.classes {
-				if _, kept := order[k]; kept && itemClasses[k] && !slices.Contains(out[i].Classes, k) {
+				if _, ok := order[k]; ok && !slices.Contains(out[i].Classes, k) {
 					out[i].Classes = append(out[i].Classes, k)
 				}
 			}

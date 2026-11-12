@@ -558,6 +558,8 @@ func TestEssenceMods(t *testing.T) {
 	g["Data/Essences.datc64"] = &fstest.MapFile{Data: encode(t, "Essences",
 		essence(map[string]int{"BodyArmour_ModsKey": life, "Display_Quiver_ModsKey": life, "Staff_ModsKey": resists, "Dagger_ModsKey": flask}),
 		essence(map[string]int{"Helmet_ModsKey": life, "Shield_ModsKey": life, "TwoHandAxe_ModsKey": resists}),
+		// classes a mod already has are not added again
+		essence(map[string]int{"Helmet_ModsKey": life, "BodyArmour_ModsKey": life, "Staff_ModsKey": resists}),
 		essence(nil))}
 	got, err := extract.Dataset(input(t, g, export()))
 	if err != nil {
@@ -569,6 +571,70 @@ func TestEssenceMods(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got.Items.EssenceMods); diff != "" {
 		t.Errorf("essence mods mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestEssenceColumns checks the item classes each Essences column applies to, with every class
+// a column names present in ItemClasses and a mod of its own in each column.
+func TestEssenceColumns(t *testing.T) {
+	t.Parallel()
+	want := map[string][]string{
+		"Helmet_ModsKey": {"Helmet"}, "BodyArmour_ModsKey": {"Body Armour"}, "Boots_ModsKey": {"Boots"},
+		"Gloves_ModsKey": {"Gloves"}, "Shield_ModsKey": {"Shield"}, "Belt_ModsKey": {"Belt"},
+		"Amulet_ModsKey": {"Amulet"}, "Ring_ModsKey": {"Ring"}, "Display_Quiver_ModsKey": {"Quiver"},
+		"Bow_ModsKey": {"Bow"}, "Wand_ModsKey": {"Wand"}, "Staff_ModsKey": {"Staff", "Warstaff"},
+		"Claw_ModsKey": {"Claw"}, "Dagger_ModsKey": {"Dagger", "Rune Dagger"}, "Sceptre_ModsKey": {"Sceptre"},
+		"OneHandSword_ModsKey": {"One Hand Sword"}, "OneHandThrustingSword_ModsKey": {"Thrusting One Hand Sword"},
+		"OneHandAxe_ModsKey": {"One Hand Axe"}, "OneHandMace_ModsKey": {"One Hand Mace"},
+		"TwoHandSword_ModsKey": {"Two Hand Sword"}, "TwoHandAxe_ModsKey": {"Two Hand Axe"},
+		"TwoHandMace_ModsKey": {"Two Hand Mace"},
+	}
+	if len(want) != len(essenceColumns) {
+		t.Fatalf("want covers %d columns, the test schema has %d", len(want), len(essenceColumns))
+	}
+	g := game(t)
+	// the classes of game's bases keep their rows; the column classes follow, sorted
+	classes := []string{"Body Armour", "Currency", "Shield", "Two Hand Axe", "LifeFlask"}
+	var more []string
+	for _, cs := range want {
+		for _, c := range cs {
+			if !slices.Contains(classes, c) {
+				more = append(more, c)
+			}
+		}
+	}
+	slices.Sort(more)
+	classes = append(classes, more...)
+	rows := make([][]any, len(classes))
+	for i, c := range classes {
+		rows[i] = []any{c, c}
+	}
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses", rows...)}
+	// the column mods follow the monster mods of game
+	mods := itemMods()
+	for _, id := range monsterMods {
+		mods = append(mods, modRow{id: id, domain: 3, generation: 3, typ: 0})
+	}
+	cols := map[string]int{}
+	for _, c := range essenceColumns {
+		cols[c] = len(mods)
+		mods = append(mods, modRow{id: c, domain: 1, generation: 1, typ: 0})
+	}
+	g["Data/Mods.datc64"] = &fstest.MapFile{Data: encodeMods(t, mods...)}
+	g["Data/Essences.datc64"] = &fstest.MapFile{Data: encode(t, "Essences", essence(cols))}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	gotClasses := map[string][]string{}
+	for _, m := range got.Items.EssenceMods {
+		gotClasses[m.Mod] = m.Classes
+	}
+	for c := range want {
+		slices.SortFunc(want[c], func(a, b string) int { return slices.Index(classes, a) - slices.Index(classes, b) })
+	}
+	if diff := cmp.Diff(want, gotClasses); diff != "" {
+		t.Errorf("classes by column mismatch (-want +got):\n%s", diff)
 	}
 }
 
