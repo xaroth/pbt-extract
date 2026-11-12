@@ -5,6 +5,7 @@ package treeexport
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 )
 
@@ -30,6 +31,50 @@ type Export struct {
 	MinY        float64               `json:"min_y"`
 	MaxX        float64               `json:"max_x"`
 	MaxY        float64               `json:"max_y"`
+	// Sprites are the art sheets by kind (such as "normalActive") and zoom level ("0.3835").
+	Sprites map[string]map[string]Sprite `json:"sprites"`
+}
+
+// Sprite places the icons of one kind on a sheet at one zoom level.
+type Sprite struct {
+	// Filename is the sheet's URL; the export's assets folder holds it under its base name.
+	Filename string
+	W, H     int
+	Coords   map[string]Rect
+	// Malformed names the icons whose rectangle is not four integers; Coords leaves them out.
+	Malformed []string
+}
+
+// Rect is an icon's rectangle on a sheet, in pixels.
+type Rect struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+// UnmarshalJSON keeps a sprite whose rectangles are partly malformed, as some exports have them.
+func (s *Sprite) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Filename string                     `json:"filename"`
+		W        int                        `json:"w"`
+		H        int                        `json:"h"`
+		Coords   map[string]json.RawMessage `json:"coords"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*s = Sprite{Filename: raw.Filename, W: raw.W, H: raw.H, Coords: make(map[string]Rect, len(raw.Coords))}
+	for name, rb := range raw.Coords {
+		var r Rect
+		if json.Unmarshal(rb, &r) != nil {
+			s.Malformed = append(s.Malformed, name)
+			continue
+		}
+		s.Coords[name] = r
+	}
+	slices.Sort(s.Malformed)
+	return nil
 }
 
 // Group is a cluster of nodes drawn around one centre.

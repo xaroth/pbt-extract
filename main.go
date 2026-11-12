@@ -1,6 +1,7 @@
 // Command pbt-extract builds pbt datasets from Path of Exile game files.
 //
 //	pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>
+//	pbt-extract art <in> <out>
 //	pbt-extract [-ooz path] bundles <in>
 //	pbt-extract [-ooz path] get <in> <path>
 //	pbt-extract [-ooz path] [-game poe1] table <in> <table>
@@ -8,7 +9,8 @@
 //
 // in is an input directory (see package input): schema.json, the tree export under tree/ and
 // the game's Bundles2. dataset writes the dataset of game version -version into the directory
-// out.
+// out. art writes the tree's sprite sheets from the export's assets folder into out, with a
+// manifest placing each icon on them.
 // bundles lists the bundle files under in that a dataset build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
 // to stdout. table decodes Data/<table>.datc64 with schema.json, with the -game edition's names
@@ -22,12 +24,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strconv"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
+	"github.com/xaroth/pbt-extract/art"
 	"github.com/xaroth/pbt-extract/bundle"
 	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/edition"
@@ -38,7 +42,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
+const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract art <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -107,6 +111,8 @@ func run(args []string) error {
 			return err
 		}
 		return writeDataset(a, ed, *version, input.Dir(cmd[1]), cmd[2])
+	case cmd[0] == "art" && len(cmd) == 3:
+		return writeArt(input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "bundles" && len(cmd) == 2:
 		a, err := open()
 		if err != nil {
@@ -143,25 +149,8 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 		return err
 	}
 	bi.Game, bi.Schema = a, schema
-	// Ruthless uses the hardmode columns of PassiveSkills.
-	treeFiles := []struct {
-		variant, file string
-		hardmode      bool
-	}{
-		{"standard", "data.json", false},
-		{"ruthless", "ruthless.json", true},
-		{"alternate", "alternate.json", false},
-	}
-	for _, tf := range treeFiles {
-		b, err := in.TreeFile(tf.file)
-		if err != nil {
-			return err
-		}
-		e, err := treeexport.Parse(b)
-		if err != nil {
-			return fmt.Errorf("%s: %w", tf.file, err)
-		}
-		bi.Trees = append(bi.Trees, extract.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
+	if bi.Trees, err = readTrees(in); err != nil {
+		return err
 	}
 	d, err := extract.Dataset(bi)
 	if err != nil {
@@ -173,6 +162,58 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	}
 	_, err = dataset.Write(out, d)
 	return err
+}
+
+// readTrees parses the tree export of each variant. Ruthless uses the hardmode columns of
+// PassiveSkills.
+func readTrees(in input.Dir) ([]extract.Variant, error) {
+	treeFiles := []struct {
+		variant, file string
+		hardmode      bool
+	}{
+		{"standard", "data.json", false},
+		{"ruthless", "ruthless.json", true},
+		{"alternate", "alternate.json", false},
+	}
+	var trees []extract.Variant
+	for _, tf := range treeFiles {
+		b, err := in.TreeFile(tf.file)
+		if err != nil {
+			return nil, err
+		}
+		e, err := treeexport.Parse(b)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", tf.file, err)
+		}
+		trees = append(trees, extract.Variant{Name: tf.variant, Export: e, Hardmode: tf.hardmode})
+	}
+	return trees, nil
+}
+
+// writeArt writes the tree art into out: the sheets of the standard tree's sprites, which
+// every variant's icons must resolve on.
+func writeArt(in input.Dir, out string) error {
+	trees, err := readTrees(in)
+	if err != nil {
+		return err
+	}
+	exports := make([]*treeexport.Export, len(trees))
+	for i, t := range trees {
+		exports[i] = t.Export
+	}
+	sprites := trees[0].Export.Sprites
+	for _, kind := range slices.Sorted(maps.Keys(sprites)) {
+		for _, z := range slices.Sorted(maps.Keys(sprites[kind])) {
+			if bad := sprites[kind][z].Malformed; len(bad) > 0 {
+				fmt.Fprintf(os.Stderr, "pbt-extract: warning: %s sprites at %s: left out malformed rectangles of %v\n", kind, z, bad)
+			}
+		}
+	}
+	a, err := art.Build(sprites, in.TreeAssets(), exports...)
+	if err != nil {
+		return err
+	}
+	return a.Write(out)
 }
 
 // editionInput returns the part of a build's input that edition data gives for game version:
