@@ -26,7 +26,39 @@ const itemTables = `
 		{"name": "Name", "type": "string"},
 		{"name": "Implicit_ModsKeys", "type": "foreignrow", "array": true, "references": {"table": "Mods"}},
 		{"name": "TagsKeys", "type": "foreignrow", "array": true, "references": {"table": "Tags"}},
-		{"name": "InheritsFrom", "type": "string"}]},
+		{"name": "InheritsFrom", "type": "string"},
+		{"name": "ModDomain", "type": "enumrow"}]},
+	{"name": "CraftingItemClassCategories", "columns": [
+		{"name": "ItemClasses", "type": "foreignrow", "array": true, "references": {"table": "ItemClasses"}}]},
+	{"name": "CraftingBenchOptions", "columns": [
+		{"name": "AddMod", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "AddEnchantment", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "ItemClasses", "type": "foreignrow", "array": true, "references": {"table": "ItemClasses"}},
+		{"name": "CraftingItemClassCategories", "type": "foreignrow", "array": true, "references": {"table": "CraftingItemClassCategories"}},
+		{"name": "IsDisabled", "type": "bool"}]},
+	{"name": "Essences", "columns": [
+		{"name": "Helmet_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "BodyArmour_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Boots_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Gloves_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Shield_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Belt_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Amulet_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Ring_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Bow_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Wand_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Staff_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Claw_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Dagger_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Sceptre_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "OneHandSword_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "OneHandThrustingSword_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "OneHandAxe_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "OneHandMace_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "TwoHandSword_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "TwoHandAxe_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "TwoHandMace_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}},
+		{"name": "Display_Quiver_ModsKey", "type": "foreignrow", "references": {"table": "Mods"}}]},
 	{"name": "ArmourTypes", "columns": [
 		{"name": "BaseItemTypesKey", "type": "foreignrow", "references": {"table": "BaseItemTypes"}},
 		{"name": "ArmourMin", "type": "i32"}, {"name": "ArmourMax", "type": "i32"},
@@ -205,6 +237,21 @@ func itemTemplate(extends string, tags ...string) []byte {
 	return utf16le(b.String())
 }
 
+// essenceColumns are the mod columns of the test Essences table, in order.
+var essenceColumns = []string{"Helmet_ModsKey", "BodyArmour_ModsKey", "Boots_ModsKey", "Gloves_ModsKey", "Shield_ModsKey", "Belt_ModsKey", "Amulet_ModsKey", "Ring_ModsKey", "Bow_ModsKey", "Wand_ModsKey", "Staff_ModsKey", "Claw_ModsKey", "Dagger_ModsKey", "Sceptre_ModsKey", "OneHandSword_ModsKey", "OneHandThrustingSword_ModsKey", "OneHandAxe_ModsKey", "OneHandMace_ModsKey", "TwoHandSword_ModsKey", "TwoHandAxe_ModsKey", "TwoHandMace_ModsKey", "Display_Quiver_ModsKey"}
+
+// essence is an Essences row with mods, Mods rows by column; other columns are null.
+func essence(mods map[string]int) []any {
+	row := make([]any, len(essenceColumns))
+	for i, c := range essenceColumns {
+		row[i] = dattest.Null
+		if m, ok := mods[c]; ok {
+			row[i] = m
+		}
+	}
+	return row
+}
+
 func itemMods() []modRow {
 	return []modRow{
 		{id: "IncreasedLife1", name: "Healthy", domain: 1, generation: 1, level: 5, typ: 0, families: []int{0}, gameMode: 1,
@@ -220,18 +267,19 @@ func itemMods() []modRow {
 }
 
 // itemGame adds the item tables to g: a body armour, a shield, an axe and a life flask, a
-// currency base that is left out, and four mods of which the monster mod is left out.
+// currency base that is left out, four mods of which the monster mod is left out, a bench
+// craft of the life mod and an essence of the resistances mod for body armours.
 // itemBases are the BaseItemTypes rows of items; gemBases follow them.
 func itemBases() [][]any {
 	return [][]any{
 		{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{2}, []int{tagBodyArmour},
-			"Metadata/Items/Armours/BodyArmours/AbstractBodyArmour"},
-		{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil), "Metadata/Items/Currency/StackableCurrency"},
+			"Metadata/Items/Armours/BodyArmours/AbstractBodyArmour", uint32(1)},
+		{"Metadata/Items/Currency/CurrencyRerollRare", 1, "Chaos Orb", []int{1}, []int(nil), "Metadata/Items/Currency/StackableCurrency", uint32(43)},
 		{"Metadata/Items/Armours/Shields/ShieldInt16", 2, "Titanium Spirit Shield", []int(nil), []int{tagShield},
-			"Metadata/Items/Armours/Shields/AbstractShield"},
+			"Metadata/Items/Armours/Shields/AbstractShield", uint32(1)},
 		{"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", 3, "Sundering Axe", []int(nil), []int(nil),
-			"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/AbstractTwoHandAxe"},
-		{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil), "Metadata/Items/Flasks/AbstractLifeFlask"},
+			"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/AbstractTwoHandAxe", uint32(1)},
+		{"Metadata/Items/Flasks/FlaskLife11", 4, "Divine Life Flask", []int(nil), []int(nil), "Metadata/Items/Flasks/AbstractLifeFlask", uint32(2)},
 	}
 }
 
@@ -259,6 +307,11 @@ func itemGame(t *testing.T, g fstest.MapFS) {
 		"ModType":   encode(t, "ModType", []any{"IncreasedLife"}, []any{"AllResistances"}),
 		"ModFamily": encode(t, "ModFamily", []any{"IncreasedLife"}),
 		"Mods":      encodeMods(t, itemMods()...),
+		// a craft adding a mod to body armours, and one adding none
+		"CraftingItemClassCategories": encode(t, "CraftingItemClassCategories", []any{[]int{0}}),
+		"CraftingBenchOptions": encode(t, "CraftingBenchOptions",
+			[]any{0, dattest.Null, []int(nil), []int{0}, false}, []any{dattest.Null, dattest.Null, []int(nil), []int{0}, false}),
+		"Essences": encode(t, "Essences", essence(map[string]int{"BodyArmour_ModsKey": 2})),
 	}
 	for name, b := range files {
 		g["Data/"+name+".datc64"] = &fstest.MapFile{Data: b}
@@ -278,17 +331,20 @@ func TestItems(t *testing.T) {
 		Classes: []dataset.ItemClass{{ID: "Body Armour"}, {ID: "Shield"}, {ID: "Two Hand Axe"}, {ID: "LifeFlask"}},
 		Tags:    itemTags,
 		Bases: []dataset.ItemBase{
-			{ID: "Metadata/Items/Armours/BodyArmours/BodyStr15", Class: "Body Armour",
+			{ID: "Metadata/Items/Armours/BodyArmours/BodyStr15", Class: "Body Armour", ModDomain: 1,
 				Implicits: []string{"AllResistancesImplicitArmour1"}, Tags: []string{"body_armour", "armour", "default"},
 				Armour: &dataset.ArmourValues{Armour: dataset.ValueRange{Min: 711, Max: 782}, MovementSpeed: -5}},
-			{ID: "Metadata/Items/Armours/Shields/ShieldInt16", Class: "Shield", Tags: []string{"shield", "armour", "default"},
+			{ID: "Metadata/Items/Armours/Shields/ShieldInt16", Class: "Shield", ModDomain: 1, Tags: []string{"shield", "armour", "default"},
 				Armour: &dataset.ArmourValues{EnergyShield: dataset.ValueRange{Min: 67, Max: 77}, MovementSpeed: -3}, Block: 25},
-			{ID: "Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", Class: "Two Hand Axe",
+			{ID: "Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15", Class: "Two Hand Axe", ModDomain: 1,
 				Tags:   []string{"axe", "two_hand_weapon", "twohand", "weapon", "default"},
 				Weapon: &dataset.WeaponValues{PhysicalDamage: dataset.ValueRange{Min: 74, Max: 155}, AttackTime: 769, CriticalChance: 500, Range: 13}},
-			{ID: "Metadata/Items/Flasks/FlaskLife11", Class: "LifeFlask", Tags: []string{"life_flask", "flask", "default"},
+			{ID: "Metadata/Items/Flasks/FlaskLife11", Class: "LifeFlask", ModDomain: 2, Tags: []string{"life_flask", "flask", "default"},
 				Flask: &dataset.FlaskValues{Kind: dataset.LifeFlask, Life: 2400, Duration: 35, MaxCharges: 45, ChargesPerUse: 15}},
 		},
+		Crafting:    true,
+		BenchCrafts: []dataset.ModClasses{{Mod: "IncreasedLife1", Classes: []string{"Body Armour"}}},
+		EssenceMods: []dataset.ModClasses{{Mod: "AllResistancesImplicitArmour1", Classes: []string{"Body Armour"}}},
 	}
 	wantMods := []dataset.Mod{
 		{ID: "IncreasedLife1", Domain: 1, Generation: 1, Level: 5, Type: "IncreasedLife", Families: []string{"IncreasedLife"}, GameMode: 1,
@@ -345,7 +401,7 @@ func TestItemBaseTags(t *testing.T) {
 	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses", classRows...)}
 	class := func(name string) int { return 5 + slices.Index(classes, name) }
 	base := func(id, class int, tags []int, template string) []any {
-		return []any{fmt.Sprintf("Base%d", id), class, "", []int(nil), tags, template}
+		return []any{fmt.Sprintf("Base%d", id), class, "", []int(nil), tags, template, uint32(1)}
 	}
 	g["Data/BaseItemTypes.datc64"] = &fstest.MapFile{Data: encode(t, "BaseItemTypes", slices.Concat(itemBases(), gemBases(), [][]any{
 		base(0, class("Helmet"), []int{tagStrArmour}, "Metadata/Items/Armours/Helmets/AbstractHelmet"),
@@ -387,6 +443,201 @@ func TestItemBaseTags(t *testing.T) {
 	}
 }
 
+// TestItemModDomains checks that a base has its own mod domain, which its class does not decide:
+// a jewel and a cluster jewel share the Jewel class.
+func TestItemModDomains(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses",
+		[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
+		[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"},
+		[]any{"Helmet", "Helmets"}, []any{"Jewel", "Jewels"}, []any{"AbyssJewel", "Abyss Jewels"})}
+	base := func(id string, class int, domain uint32, template string) []any {
+		return []any{id, class, "", []int(nil), []int(nil), template, domain}
+	}
+	g["Data/BaseItemTypes.datc64"] = &fstest.MapFile{Data: encode(t, "BaseItemTypes", slices.Concat(itemBases(), gemBases(), [][]any{
+		base("Metadata/Items/Armours/Helmets/HelmetStr1", 5, 1, "Metadata/Items/Armours/Helmets/AbstractHelmet"),
+		base("Metadata/Items/Jewels/JewelStr", 6, 10, "Metadata/Items/Jewels/AbstractJewel"),
+		base("Metadata/Items/Jewels/JewelPassiveTreeExpansionLarge", 6, 21, "Metadata/Items/Jewels/AbstractJewel"),
+		base("Metadata/Items/Jewels/JewelAbyssMelee", 7, 13, "Metadata/Items/Jewels/AbstractJewel"),
+	})...)}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := map[string]int32{
+		"Metadata/Items/Armours/BodyArmours/BodyStr15":                   1,
+		"Metadata/Items/Armours/Shields/ShieldInt16":                     1,
+		"Metadata/Items/Weapons/TwoHandWeapons/TwoHandAxes/TwoHandAxe15": 1,
+		"Metadata/Items/Flasks/FlaskLife11":                              2,
+		"Metadata/Items/Armours/Helmets/HelmetStr1":                      1,
+		"Metadata/Items/Jewels/JewelStr":                                 10,
+		"Metadata/Items/Jewels/JewelPassiveTreeExpansionLarge":           21,
+		"Metadata/Items/Jewels/JewelAbyssMelee":                          13,
+	}
+	domains := map[string]int32{}
+	for _, b := range got.Items.Bases {
+		domains[b.ID] = b.ModDomain
+	}
+	if diff := cmp.Diff(want, domains); diff != "" {
+		t.Errorf("mod domains mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestBenchCrafts checks which crafting bench options become crafts and the classes each
+// applies to: by category, by class, or both; outside the kept classes; disabled; adding an
+// enchantment; adding nothing.
+func TestBenchCrafts(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	// Rows 5 to 9 follow those of itemGame; Map is not a kept class.
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses",
+		[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
+		[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"},
+		[]any{"Boots", "Boots"}, []any{"Amulet", "Amulets"}, []any{"Ring", "Rings"},
+		[]any{"One Hand Sword", "One Hand Swords"}, []any{"Map", "Maps"})}
+	const lifeFlask, boots, amulet, ring, sword, mapClass = 4, 5, 6, 7, 8, 9
+	g["Data/CraftingItemClassCategories.datc64"] = &fstest.MapFile{Data: encode(t, "CraftingItemClassCategories",
+		[]any{[]int{boots}}, []any{[]int{amulet}}, []any{[]int{ring}},
+		[]any{[]int{sword, 1}}, []any{[]int{3}}, []any{[]int{mapClass}})}
+	const catBoots, catAmulet, catRing, catOneHandMelee, catTwoHandMelee, catMap = 0, 1, 2, 3, 4, 5
+	// the crafted mods follow the monster mods of game
+	mods := itemMods()
+	for _, id := range monsterMods {
+		mods = append(mods, modRow{id: id, domain: 3, generation: 3, typ: 0})
+	}
+	first := len(mods)
+	mods = append(mods,
+		modRow{id: "EinharMasterFireResist1", domain: 9, generation: 2, level: 15, typ: 1},
+		modRow{id: "EinharMasterAllResist1", domain: 9, generation: 2, level: 30, typ: 1},
+		modRow{id: "EinharMasterLocalIncreasedPhysicalDamage1", domain: 9, generation: 1, level: 15, typ: 0},
+		modRow{id: "StrDexIntMasterMapQuantity1", domain: 9, generation: 1, level: 1, typ: 0},
+		modRow{id: "DisabledCraft", domain: 9, generation: 1, level: 1, typ: 0},
+		modRow{id: "FlaskEnchantmentInjectorOnUsingLifeFlask", domain: 1, generation: 22, level: 1, typ: 0},
+	)
+	g["Data/Mods.datc64"] = &fstest.MapFile{Data: encodeMods(t, mods...)}
+	g["Data/CraftingBenchOptions.datc64"] = &fstest.MapFile{Data: encode(t, "CraftingBenchOptions",
+		[]any{first, dattest.Null, []int(nil), []int{catBoots}, false},
+		// classes named directly and through categories are listed once, in ItemClasses order
+		[]any{first + 1, dattest.Null, []int{amulet}, []int{catRing, catAmulet}, false},
+		// the Currency class of the category is not kept
+		[]any{first + 2, dattest.Null, []int(nil), []int{catOneHandMelee, catTwoHandMelee}, false},
+		[]any{first + 3, dattest.Null, []int{mapClass}, []int{catMap}, false},
+		[]any{first + 4, dattest.Null, []int(nil), []int{catBoots}, true},
+		[]any{dattest.Null, first + 5, []int{lifeFlask}, []int(nil), false},
+		[]any{dattest.Null, dattest.Null, []int(nil), []int{catBoots}, false})}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := []dataset.ModClasses{
+		{Mod: "EinharMasterFireResist1", Classes: []string{"Boots"}},
+		{Mod: "EinharMasterAllResist1", Classes: []string{"Amulet", "Ring"}},
+		{Mod: "EinharMasterLocalIncreasedPhysicalDamage1", Classes: []string{"Two Hand Axe", "One Hand Sword"}},
+		{Mod: "FlaskEnchantmentInjectorOnUsingLifeFlask", Classes: []string{"LifeFlask"}},
+	}
+	if diff := cmp.Diff(want, got.Items.BenchCrafts); diff != "" {
+		t.Errorf("bench crafts mismatch (-want +got):\n%s", diff)
+	}
+	if _, err := dataset.Write(t.TempDir(), got); err != nil {
+		t.Errorf("Write: %v", err)
+	}
+}
+
+// TestEssenceMods checks that each essence mod is listed once with the classes of every column
+// and essence that adds it: the quiver column, staff mods on warstaves, and classes not in the
+// game left out.
+func TestEssenceMods(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses",
+		[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
+		[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"},
+		[]any{"Warstaff", "Warstaves"}, []any{"Helmet", "Helmets"}, []any{"Quiver", "Quivers"}, []any{"Staff", "Staves"})}
+	const life, resists, flask = 0, 2, 3
+	g["Data/Essences.datc64"] = &fstest.MapFile{Data: encode(t, "Essences",
+		essence(map[string]int{"BodyArmour_ModsKey": life, "Display_Quiver_ModsKey": life, "Staff_ModsKey": resists, "Dagger_ModsKey": flask}),
+		essence(map[string]int{"Helmet_ModsKey": life, "Shield_ModsKey": life, "TwoHandAxe_ModsKey": resists}),
+		// classes a mod already has are not added again
+		essence(map[string]int{"Helmet_ModsKey": life, "BodyArmour_ModsKey": life, "Staff_ModsKey": resists}),
+		essence(nil))}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := []dataset.ModClasses{
+		{Mod: "IncreasedLife1", Classes: []string{"Body Armour", "Shield", "Helmet", "Quiver"}},
+		{Mod: "AllResistancesImplicitArmour1", Classes: []string{"Two Hand Axe", "Warstaff", "Staff"}},
+	}
+	if diff := cmp.Diff(want, got.Items.EssenceMods); diff != "" {
+		t.Errorf("essence mods mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestEssenceColumns checks the item classes each Essences column applies to, with every class
+// a column names present in ItemClasses and a mod of its own in each column.
+func TestEssenceColumns(t *testing.T) {
+	t.Parallel()
+	want := map[string][]string{
+		"Helmet_ModsKey": {"Helmet"}, "BodyArmour_ModsKey": {"Body Armour"}, "Boots_ModsKey": {"Boots"},
+		"Gloves_ModsKey": {"Gloves"}, "Shield_ModsKey": {"Shield"}, "Belt_ModsKey": {"Belt"},
+		"Amulet_ModsKey": {"Amulet"}, "Ring_ModsKey": {"Ring"}, "Display_Quiver_ModsKey": {"Quiver"},
+		"Bow_ModsKey": {"Bow"}, "Wand_ModsKey": {"Wand"}, "Staff_ModsKey": {"Staff", "Warstaff"},
+		"Claw_ModsKey": {"Claw"}, "Dagger_ModsKey": {"Dagger", "Rune Dagger"}, "Sceptre_ModsKey": {"Sceptre"},
+		"OneHandSword_ModsKey": {"One Hand Sword"}, "OneHandThrustingSword_ModsKey": {"Thrusting One Hand Sword"},
+		"OneHandAxe_ModsKey": {"One Hand Axe"}, "OneHandMace_ModsKey": {"One Hand Mace"},
+		"TwoHandSword_ModsKey": {"Two Hand Sword"}, "TwoHandAxe_ModsKey": {"Two Hand Axe"},
+		"TwoHandMace_ModsKey": {"Two Hand Mace"},
+	}
+	if len(want) != len(essenceColumns) {
+		t.Fatalf("want covers %d columns, the test schema has %d", len(want), len(essenceColumns))
+	}
+	g := game(t)
+	// the classes of game's bases keep their rows; the column classes follow, sorted
+	classes := []string{"Body Armour", "Currency", "Shield", "Two Hand Axe", "LifeFlask"}
+	var more []string
+	for _, cs := range want {
+		for _, c := range cs {
+			if !slices.Contains(classes, c) {
+				more = append(more, c)
+			}
+		}
+	}
+	slices.Sort(more)
+	classes = append(classes, more...)
+	rows := make([][]any, len(classes))
+	for i, c := range classes {
+		rows[i] = []any{c, c}
+	}
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses", rows...)}
+	// the column mods follow the monster mods of game
+	mods := itemMods()
+	for _, id := range monsterMods {
+		mods = append(mods, modRow{id: id, domain: 3, generation: 3, typ: 0})
+	}
+	cols := map[string]int{}
+	for _, c := range essenceColumns {
+		cols[c] = len(mods)
+		mods = append(mods, modRow{id: c, domain: 1, generation: 1, typ: 0})
+	}
+	g["Data/Mods.datc64"] = &fstest.MapFile{Data: encodeMods(t, mods...)}
+	g["Data/Essences.datc64"] = &fstest.MapFile{Data: encode(t, "Essences", essence(cols))}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	gotClasses := map[string][]string{}
+	for _, m := range got.Items.EssenceMods {
+		gotClasses[m.Mod] = m.Classes
+	}
+	for c := range want {
+		slices.SortFunc(want[c], func(a, b string) int { return slices.Index(classes, a) - slices.Index(classes, b) })
+	}
+	if diff := cmp.Diff(want, gotClasses); diff != "" {
+		t.Errorf("classes by column mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestItemsErrors(t *testing.T) {
 	t.Parallel()
 	setMods := func(edit func([]modRow)) func(*testing.T, fstest.MapFS) {
@@ -408,12 +659,12 @@ func TestItemsErrors(t *testing.T) {
 	}{
 		{"missing table", func(_ *testing.T, g fstest.MapFS) { delete(g, "Data/Mods.datc64") }, "Mods.datc64"},
 		{"implicit not an item mod", set("BaseItemTypes",
-			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{1}, []int(nil), "Metadata/Items/Item"}),
+			[]any{"Metadata/Items/Armours/BodyArmours/BodyStr15", 0, "Astral Plate", []int{1}, []int(nil), "Metadata/Items/Item", uint32(1)}),
 			"implicit mod row 1 is not an item mod"},
-		{"base class out of range", set("BaseItemTypes", []any{"X", 9, "X", []int(nil), []int(nil), "Metadata/Items/Item"}), "ItemClasses row 9 out of range"},
-		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{99}, "Metadata/Items/Item"}), "Tags row 99 out of range"},
-		{"base without template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), ""}), "BaseItemTypes row 0: no item template"},
-		{"missing template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), "Metadata/Items/Nope"}),
+		{"base class out of range", set("BaseItemTypes", []any{"X", 9, "X", []int(nil), []int(nil), "Metadata/Items/Item", uint32(1)}), "ItemClasses row 9 out of range"},
+		{"base tag out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int{99}, "Metadata/Items/Item", uint32(1)}), "Tags row 99 out of range"},
+		{"base without template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), "", uint32(1)}), "BaseItemTypes row 0: no item template"},
+		{"missing template", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), "Metadata/Items/Nope", uint32(1)}),
 			"item template Metadata/Items/Nope"},
 		{"template tag not in Tags", func(_ *testing.T, g fstest.MapFS) {
 			g["Metadata/Items/Item.it"] = &fstest.MapFile{Data: itemTemplate("nothing", "unknown")}
@@ -424,6 +675,20 @@ func TestItemsErrors(t *testing.T) {
 		{"second charges row", set("ComponentCharges",
 			[]any{"Metadata/Items/Flasks/FlaskLife11", int32(45), int32(15)}, []any{"Metadata/Items/Flasks/FlaskLife11", int32(45), int32(15)}),
 			"has a second row"},
+		{"base mod domain out of range", set("BaseItemTypes", []any{"X", 0, "X", []int(nil), []int(nil), "Metadata/Items/Item", uint32(1 << 31)}),
+			"BaseItemTypes row 0: column ModDomain: 2147483648 out of range"},
+		{"craft of a monster mod", set("CraftingBenchOptions", []any{1, dattest.Null, []int(nil), []int{0}, false}),
+			"CraftingBenchOptions row 0: mod row 1 is not an item mod"},
+		{"enchantment craft of a monster mod", set("CraftingBenchOptions", []any{dattest.Null, 1, []int(nil), []int{0}, false}),
+			"CraftingBenchOptions row 0: mod row 1 is not an item mod"},
+		{"craft category out of range", set("CraftingBenchOptions", []any{0, dattest.Null, []int(nil), []int{9}, false}),
+			"CraftingBenchOptions row 0: CraftingItemClassCategories row 9 out of range"},
+		{"craft class out of range", set("CraftingBenchOptions", []any{0, dattest.Null, []int{9}, []int(nil), false}),
+			"CraftingBenchOptions row 0: ItemClasses row 9 out of range"},
+		{"essence of a monster mod", set("Essences", essence(map[string]int{"Helmet_ModsKey": 1})),
+			"Essences row 0: mod row 1 is not an item mod"},
+		{"category class out of range", set("CraftingItemClassCategories", []any{[]int{9}}),
+			"CraftingBenchOptions row 0: ItemClasses row 9 out of range"},
 		{"mod stat out of range", setMods(func(m []modRow) { m[0].stats[0].stat = 9 }), "Mods row 0: stat row 9 out of range"},
 		{"mod type out of range", setMods(func(m []modRow) { m[0].typ = 9 }), "ModType row 9 out of range"},
 		{"game mode out of range", setMods(func(m []modRow) { m[0].gameMode = 1 << 31 }), "Mods row 0: column GameMode: 2147483648 out of range"},

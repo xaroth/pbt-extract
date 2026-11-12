@@ -51,7 +51,73 @@ type baseRow struct {
 	Implicits []dat.Ref `dat:"Implicit_ModsKeys" ref:"Mods"`
 	Tags      []dat.Ref `dat:"TagsKeys" ref:"Tags"`
 	// Template is the item template (.it) the base extends.
-	Template string `dat:"InheritsFrom"`
+	Template  string `dat:"InheritsFrom"`
+	ModDomain uint32 `dat:"ModDomain"`
+}
+
+type benchCraftRow struct {
+	Mod         dat.Ref   `dat:"AddMod" ref:"Mods"`
+	Enchantment dat.Ref   `dat:"AddEnchantment" ref:"Mods"`
+	Classes     []dat.Ref `dat:"ItemClasses" ref:"ItemClasses"`
+	Categories  []dat.Ref `dat:"CraftingItemClassCategories" ref:"CraftingItemClassCategories"`
+	Disabled    bool      `dat:"IsDisabled"`
+}
+
+type craftCategoryRow struct {
+	Classes []dat.Ref `dat:"ItemClasses" ref:"ItemClasses"`
+}
+
+// essenceRow holds the mod an essence adds to items of each class. The Display_ columns other
+// than Display_Quiver_ModsKey repeat these for the essence's tooltip.
+type essenceRow struct {
+	Helmet       dat.Ref `dat:"Helmet_ModsKey" ref:"Mods"`
+	BodyArmour   dat.Ref `dat:"BodyArmour_ModsKey" ref:"Mods"`
+	Boots        dat.Ref `dat:"Boots_ModsKey" ref:"Mods"`
+	Gloves       dat.Ref `dat:"Gloves_ModsKey" ref:"Mods"`
+	Shield       dat.Ref `dat:"Shield_ModsKey" ref:"Mods"`
+	Belt         dat.Ref `dat:"Belt_ModsKey" ref:"Mods"`
+	Amulet       dat.Ref `dat:"Amulet_ModsKey" ref:"Mods"`
+	Ring         dat.Ref `dat:"Ring_ModsKey" ref:"Mods"`
+	Bow          dat.Ref `dat:"Bow_ModsKey" ref:"Mods"`
+	Wand         dat.Ref `dat:"Wand_ModsKey" ref:"Mods"`
+	Staff        dat.Ref `dat:"Staff_ModsKey" ref:"Mods"`
+	Claw         dat.Ref `dat:"Claw_ModsKey" ref:"Mods"`
+	Dagger       dat.Ref `dat:"Dagger_ModsKey" ref:"Mods"`
+	Sceptre      dat.Ref `dat:"Sceptre_ModsKey" ref:"Mods"`
+	OneHandSword dat.Ref `dat:"OneHandSword_ModsKey" ref:"Mods"`
+	Thrusting    dat.Ref `dat:"OneHandThrustingSword_ModsKey" ref:"Mods"`
+	OneHandAxe   dat.Ref `dat:"OneHandAxe_ModsKey" ref:"Mods"`
+	OneHandMace  dat.Ref `dat:"OneHandMace_ModsKey" ref:"Mods"`
+	TwoHandSword dat.Ref `dat:"TwoHandSword_ModsKey" ref:"Mods"`
+	TwoHandAxe   dat.Ref `dat:"TwoHandAxe_ModsKey" ref:"Mods"`
+	TwoHandMace  dat.Ref `dat:"TwoHandMace_ModsKey" ref:"Mods"`
+	// Quiver is the only column with quiver mods; dat-schema names it as a display column. It
+	// is set on every essence that has the other item columns set, and Path of Building's
+	// Export/spec.lua reads it as the quiver mod.
+	Quiver dat.Ref `dat:"Display_Quiver_ModsKey" ref:"Mods"`
+}
+
+// classMods pairs each mod of e with the ItemClasses.Ids it is for. Warstaves take the staff mod
+// and rune daggers the dagger mod: the game has no column for them, and they are staves and
+// daggers to the game (their bases carry the staff and dagger tags).
+func (e essenceRow) classMods() []struct {
+	mod     dat.Ref
+	classes []string
+} {
+	return []struct {
+		mod     dat.Ref
+		classes []string
+	}{
+		{e.Helmet, []string{"Helmet"}}, {e.BodyArmour, []string{"Body Armour"}}, {e.Boots, []string{"Boots"}},
+		{e.Gloves, []string{"Gloves"}}, {e.Shield, []string{"Shield"}}, {e.Belt, []string{"Belt"}},
+		{e.Amulet, []string{"Amulet"}}, {e.Ring, []string{"Ring"}}, {e.Quiver, []string{"Quiver"}},
+		{e.Bow, []string{"Bow"}}, {e.Wand, []string{"Wand"}}, {e.Staff, []string{"Staff", "Warstaff"}},
+		{e.Claw, []string{"Claw"}}, {e.Dagger, []string{"Dagger", "Rune Dagger"}}, {e.Sceptre, []string{"Sceptre"}},
+		{e.OneHandSword, []string{"One Hand Sword"}}, {e.Thrusting, []string{"Thrusting One Hand Sword"}},
+		{e.OneHandAxe, []string{"One Hand Axe"}}, {e.OneHandMace, []string{"One Hand Mace"}},
+		{e.TwoHandSword, []string{"Two Hand Sword"}}, {e.TwoHandAxe, []string{"Two Hand Axe"}},
+		{e.TwoHandMace, []string{"Two Hand Mace"}},
+	}
 }
 
 type armourRow struct {
@@ -200,8 +266,10 @@ type itemNames struct {
 }
 
 // items reads the items group: the classes in itemClasses with their bases and their values,
-// and the mods of modDomains. All are in table order. A base's tags are its own, then those of
-// its item template chain (see ot.ItemTags). nStats is the number of rows in Stats.
+// the mods of modDomains, and the bench crafts and essences that add one of them to items of
+// those classes. Classes, bases, mods and bench crafts are in table order, essence mods in the
+// order essences first add them. A base's tags are its own, then those of its item template
+// chain (see ot.ItemTags). nStats is the number of rows in Stats.
 func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
 	tags, err := readIDs(r, s, "Tags")
@@ -255,6 +323,13 @@ func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mo
 	if err := baseValues(r, s, it.Bases, kept, len(bases)); err != nil {
 		return nil, nil, names, err
 	}
+	if it.BenchCrafts, err = benchCrafts(r, s, classes, modIDs); err != nil {
+		return nil, nil, names, err
+	}
+	if it.EssenceMods, err = essenceMods(r, s, classes, modIDs); err != nil {
+		return nil, nil, names, err
+	}
+	it.Crafting = true
 	return it, mods, names, nil
 }
 
@@ -266,6 +341,9 @@ func itemBase(b baseRow, classes []itemClassRow, tags []string, modIDs map[int]s
 		return dataset.ItemBase{}, false, err
 	}
 	base := dataset.ItemBase{ID: b.ID, Class: c.ID}
+	if base.ModDomain, err = narrow[int32](b.ModDomain, "ModDomain"); err != nil {
+		return base, false, err
+	}
 	for _, ref := range b.Implicits {
 		row, ok := ref.Row()
 		if !ok {
@@ -281,6 +359,125 @@ func itemBase(b baseRow, classes []itemClassRow, tags []string, modIDs map[int]s
 		return base, false, err
 	}
 	return base, true, nil
+}
+
+// benchCrafts reads the crafting bench options that are not disabled, a craft for the mod and
+// the enchantment each adds. A craft applies to the classes the option names and those of its
+// categories, in ItemClasses order and limited to itemClasses; an option for none of them is
+// left out. modIDs holds the id of each kept Mods row.
+func benchCrafts(r ot.Reader, s *dat.Schema, classes []itemClassRow, modIDs map[int]string) ([]dataset.ModClasses, error) {
+	rows, err := readRows[benchCraftRow](r, s, "CraftingBenchOptions")
+	if err != nil {
+		return nil, err
+	}
+	categories, err := readRows[craftCategoryRow](r, s, "CraftingItemClassCategories")
+	if err != nil {
+		return nil, err
+	}
+	var out []dataset.ModClasses
+	for row, c := range rows {
+		mods := slices.DeleteFunc([]dat.Ref{c.Mod, c.Enchantment}, func(m dat.Ref) bool { _, ok := m.Row(); return !ok })
+		if len(mods) == 0 || c.Disabled {
+			continue
+		}
+		crafts, err := benchCraft(c, mods, classes, categories, modIDs)
+		if err != nil {
+			return nil, fmt.Errorf("table CraftingBenchOptions row %d: %w", row, err)
+		}
+		out = append(out, crafts...)
+	}
+	return out, nil
+}
+
+// benchCraft returns a craft of c for each of mods, none when c applies to no class in
+// itemClasses.
+func benchCraft(c benchCraftRow, mods []dat.Ref, classes []itemClassRow, categories []craftCategoryRow, modIDs map[int]string) ([]dataset.ModClasses, error) {
+	refs := slices.Clone(c.Classes)
+	for _, ref := range c.Categories {
+		cat, err := lookup(ref, categories, "CraftingItemClassCategories")
+		if err != nil {
+			return nil, err
+		}
+		refs = append(refs, cat.Classes...)
+	}
+	ids, err := keptClasses(refs, classes)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	var out []dataset.ModClasses
+	for _, m := range mods {
+		row, _ := m.Row()
+		id, ok := modIDs[row]
+		if !ok {
+			return nil, fmt.Errorf("mod row %d is not an item mod", row)
+		}
+		out = append(out, dataset.ModClasses{Mod: id, Classes: ids})
+	}
+	return out, nil
+}
+
+// keptClasses returns the ItemClasses.Ids of refs that are in itemClasses, once each and in
+// table order.
+func keptClasses(refs []dat.Ref, classes []itemClassRow) ([]string, error) {
+	var rows []int
+	for _, ref := range refs {
+		row, err := rowOf(ref, len(classes), "ItemClasses")
+		if err != nil {
+			return nil, err
+		}
+		if itemClasses[classes[row].ID] && !slices.Contains(rows, row) {
+			rows = append(rows, row)
+		}
+	}
+	slices.Sort(rows)
+	var ids []string
+	for _, row := range rows {
+		ids = append(ids, classes[row].ID)
+	}
+	return ids, nil
+}
+
+// essenceMods reads the mods essences add, each once with the classes of every essence that
+// adds it, in the order essences first add them. Classes are in ItemClasses order; a class not
+// in ItemClasses is left out. classMods names only classes in itemClasses. modIDs holds the id
+// of each kept Mods row.
+func essenceMods(r ot.Reader, s *dat.Schema, classes []itemClassRow, modIDs map[int]string) ([]dataset.ModClasses, error) {
+	rows, err := readRows[essenceRow](r, s, "Essences")
+	if err != nil {
+		return nil, err
+	}
+	order := map[string]int{}
+	for i, c := range classes {
+		order[c.ID] = i
+	}
+	var out []dataset.ModClasses
+	index := map[string]int{} // mod id to index in out
+	for row, e := range rows {
+		for _, cm := range e.classMods() {
+			m, ok := cm.mod.Row()
+			if !ok {
+				continue
+			}
+			id, ok := modIDs[m]
+			if !ok {
+				return nil, fmt.Errorf("table Essences row %d: mod row %d is not an item mod", row, m)
+			}
+			i, seen := index[id]
+			if !seen {
+				i, index[id] = len(out), len(out)
+				out = append(out, dataset.ModClasses{Mod: id})
+			}
+			for _, k := range cm.classes {
+				if _, ok := order[k]; ok && !slices.Contains(out[i].Classes, k) {
+					out[i].Classes = append(out[i].Classes, k)
+				}
+			}
+		}
+	}
+	for i := range out {
+		slices.SortFunc(out[i].Classes, func(a, b string) int { return order[a] - order[b] })
+	}
+	return slices.DeleteFunc(out, func(m dataset.ModClasses) bool { return len(m.Classes) == 0 }), nil
 }
 
 // templateTagger returns a function giving the tags a base inherits from the item template at a
