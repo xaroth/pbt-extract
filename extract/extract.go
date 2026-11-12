@@ -137,6 +137,11 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 				return nil, err
 			}
 			d.Trees = append(d.Trees, t)
+			l, err := layout(v)
+			if err != nil {
+				return nil, err
+			}
+			d.Layouts = append(d.Layouts, l)
 			if err := addNames(&text, nodeNames, v); err != nil {
 				return nil, err
 			}
