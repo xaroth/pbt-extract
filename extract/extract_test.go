@@ -297,6 +297,29 @@ func TestDataset(t *testing.T) {
 	}
 }
 
+func TestDatasetProxyWithoutRow(t *testing.T) {
+	t.Parallel()
+	e := export()
+	e.Nodes["9"] = treeexport.Node{Skill: 9, Name: "Growth", IsNotable: true, IsProxy: true, In: []string{"2"}, Group: 10}
+	in := input(t, game(t), e)
+	in.Trees = in.Trees[:1]
+	var warnings []string
+	in.Warn = func(msg string) { warnings = append(warnings, msg) }
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := []string{"tree standard node 9: proxy node has no PassiveSkills row; carried without stats"}
+	if diff := cmp.Diff(want, warnings); diff != "" {
+		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+	}
+	nodes := got.Trees[0].Nodes
+	wantNode := dataset.Node{ID: 9, Kind: dataset.Notable, Neighbours: []uint32{2}}
+	if diff := cmp.Diff(wantNode, nodes[len(nodes)-1], cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("proxy node mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestDatasetErrors(t *testing.T) {
 	t.Parallel()
 	const statsI32 = `{"version": 7, "tables": [{"name": "Stats", "columns": [{"name": "Id", "type": "i32"}]}]}`
@@ -374,7 +397,7 @@ func TestDatasetErrors(t *testing.T) {
 		{name: "buff stat out of range", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encodeBuffDefs(t, buffDef{id: "a", stats: []int{9}}, buffDef{id: "b"})}
 		}},
-		{name: "node not in PassiveSkills", export: func(e *treeexport.Export) { e.Nodes["9"] = treeexport.Node{Skill: 9} }},
+		{name: "non-proxy node not in PassiveSkills", export: func(e *treeexport.Export) { e.Nodes["9"] = treeexport.Node{Skill: 9} }},
 		{name: "unknown mastery effect", export: func(e *treeexport.Export) {
 			n := e.Nodes["3"]
 			n.MasteryEffects = []treeexport.MasteryEffect{{Effect: 8}}

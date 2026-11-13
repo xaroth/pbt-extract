@@ -2,6 +2,7 @@ package extract
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -27,6 +28,7 @@ type treeTables struct {
 	passives, mastery, masteryGroups, buffTemplates, buffDefs table
 	byGraphID, byMasteryHash                                  map[int]int
 	stats                                                     []dataset.Stat
+	warn                                                      func(string)
 }
 
 func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat) (*treeTables, error) {
@@ -92,6 +94,14 @@ func (tt *treeTables) build(v Variant, classes map[int]string) (dataset.Tree, er
 	for _, id := range slices.Sorted(maps.Keys(e.Nodes)) {
 		n := e.Nodes[id]
 		nd, err := tt.node(n, e, v.Hardmode)
+		if errors.Is(err, errNoPassive) && n.IsProxy {
+			// New proxy nodes can reach the tree export before the game files have their rows.
+			// Without stats they still connect the tree and match the layout.
+			if tt.warn != nil {
+				tt.warn(fmt.Sprintf("tree %s node %s: proxy node has no PassiveSkills row; carried without stats", v.Name, id))
+			}
+			nd, err = edges(nd, n, e)
+		}
 		if err != nil {
 			return t, fmt.Errorf("tree %s node %s: %w", v.Name, id, err)
 		}
@@ -133,6 +143,8 @@ func ascendancies(as []treeexport.Ascendancy) []dataset.Ascendancy {
 	return out
 }
 
+var errNoPassive = errors.New("no PassiveSkills row")
+
 func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode bool) (dataset.Node, error) {
 	nd := dataset.Node{
 		ID:                   n.Skill,
@@ -143,7 +155,7 @@ func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode boo
 	}
 	row, ok := tt.byGraphID[int(n.Skill)]
 	if !ok {
-		return nd, fmt.Errorf("no PassiveSkills row")
+		return nd, errNoPassive
 	}
 	p := tt.passives
 	hard := false
@@ -197,7 +209,11 @@ func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode boo
 		}
 		nd.MasteryEffects = append(nd.MasteryEffects, dataset.MasteryEffect{ID: me.Effect, Stats: svs})
 	}
+	return edges(nd, n, e)
+}
 
+// edges sets nd's neighbours from the node's edges in both directions.
+func edges(nd dataset.Node, n treeexport.Node, e *treeexport.Export) (dataset.Node, error) {
 	seen := map[uint32]bool{}
 	for _, list := range [][]string{n.Out, n.In} {
 		for _, s := range list {

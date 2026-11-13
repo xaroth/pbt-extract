@@ -157,6 +157,7 @@ func writeDataset(a *bundle.Archive, ed *edition.Edition, version string, in inp
 	if bi.Trees, err = readTrees(in); err != nil {
 		return err
 	}
+	bi.Warn = func(msg string) { fmt.Fprintf(os.Stderr, "pbt-extract: warning: %s\n", msg) }
 	d, err := extract.Dataset(bi)
 	if err != nil {
 		return err
