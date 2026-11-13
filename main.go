@@ -9,9 +9,9 @@
 //
 // in is an input directory (see package input): schema.json, the tree export under tree/ and
 // the game's Bundles2. dataset writes the dataset of game version -version into the directory
-// out. art writes the tree's sprite sheets from the export's assets folder and the face of each
-// base class from the game's UI art into out, with a manifest placing each icon on the sheets and
-// naming each class's face.
+// out. art writes the tree's sprite sheets from the export's assets folder and the faces of
+// the base classes and their ascendancies from the game's UI art into out, with a manifest placing
+// each icon on the sheets and naming each face.
 // bundles lists the bundle files under in that a dataset or art build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
 // to stdout. table decodes Data/<table>.datc64 with schema.json, with the -game edition's names
@@ -197,7 +197,7 @@ func readTrees(in input.Dir) ([]extract.Variant, error) {
 }
 
 // writeArt writes the art into out: the sheets of the standard tree's sprites, which every
-// variant's icons must resolve on, and the class faces.
+// variant's icons must resolve on, and the class and ascendancy faces.
 func writeArt(game *bundle.Archive, in input.Dir, out string) error {
 	trees, err := readTrees(in)
 	if err != nil {
@@ -223,11 +223,13 @@ func writeArt(game *bundle.Archive, in input.Dir, out string) error {
 	if err != nil {
 		return err
 	}
-	faces, err := art.ClassFaces(game, schema)
+	faces, err := art.ReadFaces(game, schema, trees[0].Export.Classes, func(msg string) {
+		fmt.Fprintf(os.Stderr, "pbt-extract: warning: %s\n", msg)
+	})
 	if err != nil {
 		return err
 	}
-	if err := a.AddClassFaces(faces); err != nil {
+	if err := a.AddFaces(faces); err != nil {
 		return err
 	}
 	return a.Write(out)
