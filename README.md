@@ -33,6 +33,8 @@ The face of each ascendancy of the standard tree's classes is the image `Icon<X>
 
 Each tree of a dataset carries the game's tattoos and runegrafts from `PassiveSkillOverrides`, with their English names. An override's target comes from its `PassiveSkillTattoos` row; a tattoo that grants a random override of a type, such as a keystone or ascendancy tattoo, gives its target to every override of that type, and its own placeholder override is left out. An override without a name of its own takes the name, icon and stats of its `AllocatedPassiveSkill`, in a ruthless tree its ruthless stats where it has them. An override without a target, without an icon, with a stat that does not resolve or named `[DNT` is left out with a warning; a missing name, or a passive's buffs, which the dataset cannot hold, are a warning. The game files of 3.27 have no `TattooBlockingPassive`, so their overrides exclude no nodes.
 
+Stat descriptions are read from each `Metadata/StatDescriptions` file as `.txt`, or as `.csd` where the client has no `.txt` (3.30 on); a scope keeps the `.txt` name either way. A limit bound with a stray `#`, such as `1|99#`, reads as its number.
+
 Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
 `edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed, `totems.json` for the totems of supports, a link the game data does not hold; `values.json` for how the game files of older leagues number a column whose values the dat-schema enumeration numbers otherwise.

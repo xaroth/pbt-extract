@@ -112,6 +112,24 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// The game reads a number with a stray # as the number: this variant is followed by 100|#.
+func TestParseStrayHash(t *testing.T) {
+	t.Parallel()
+	src := "description\n\t1 a\n\t2\n\t\t1|99# \"{0}% chance\"\n\t\t100|# \"always\"\n"
+	got, err := parser.Parse("f.txt", encode(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := []statdesc.Limit{{Min: 1, Max: 99}, {Min: 100, Max: math.MaxInt32}}
+	var limits []statdesc.Limit
+	for _, v := range got.Descriptions[0].Variants {
+		limits = append(limits, v.Limits...)
+	}
+	if diff := cmp.Diff(want, limits); diff != "" {
+		t.Errorf("limits mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestParseErrors(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -134,6 +152,7 @@ func TestParseErrors(t *testing.T) {
 		{name: "end of file before stats", src: encode("description\n")},
 		{name: "limit count", src: encode("description\n\t1 a\n\t1\n\t\t# # \"x\"\n")},
 		{name: "bad limit", src: encode("description\n\t1 a\n\t1\n\t\tx \"x\"\n")},
+		{name: "bare stray hash", src: encode("description\n\t1 a\n\t1\n\t\t1|## \"x\"\n")},
 		{name: "bad not limit", src: encode("description\n\t1 a\n\t1\n\t\t!x \"x\"\n")},
 		{name: "missing text", src: encode("description\n\t1 a\n\t1\n\t\t#\n")},
 		{name: "handler stat out of range", src: encode("description\n\t1 a\n\t1\n\t\t# \"x\" negate 2\n")},
@@ -157,6 +176,11 @@ func TestLoad(t *testing.T) {
 		"loop.txt":   {Data: encode("include \"loop.txt\"\n")},
 		"orphan.txt": {Data: encode("include \"gone.txt\"\n")},
 		"broken.txt": {Data: encode("description\n")},
+		// From 3.30 the files and their includes are .csd; a .txt is read where both exist.
+		"new.csd":     {Data: encode("include \"newbase.csd\"\n")},
+		"newbase.csd": {Data: encode("no_description y\n")},
+		"both.txt":    {Data: encode("include \"base.txt\"\n")},
+		"both.csd":    {Data: encode("include \"gone.csd\"\n")},
 	}
 	for _, c := range []struct {
 		paths []string
@@ -166,6 +190,9 @@ func TestLoad(t *testing.T) {
 		// a file reached twice is loaded once
 		{[]string{"child.txt", "other.txt", "base.txt"}, []string{"child.txt", "base.txt", "other.txt"}},
 		{[]string{"other.txt", "child.txt"}, []string{"other.txt", "child.txt", "base.txt"}},
+		{[]string{"new.txt"}, []string{"new.txt", "newbase.txt"}},
+		{[]string{"new.csd"}, []string{"new.txt", "newbase.txt"}},
+		{[]string{"both.txt"}, []string{"both.txt", "base.txt"}},
 	} {
 		got, err := parser.Load(fsys, c.paths...)
 		if err != nil {
@@ -187,6 +214,7 @@ func TestLoad(t *testing.T) {
 	}{
 		{name: "cycle", path: "loop.txt"},
 		{name: "missing include", path: "orphan.txt", notExist: true},
+		{name: "missing file", path: "gone.txt", notExist: true},
 		{name: "parse error", path: "broken.txt"},
 	}
 	for _, testCase := range testCases {

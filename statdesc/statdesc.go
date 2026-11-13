@@ -1,10 +1,11 @@
-// Package statdesc parses stat description files (Metadata/StatDescriptions/*.txt) into
-// pbt-engine statdesc scopes. Only English text is kept.
+// Package statdesc parses stat description files (Metadata/StatDescriptions/*.txt, *.csd from 3.30)
+// into pbt-engine statdesc scopes. Only English text is kept.
 package statdesc
 
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"strconv"
 	"strings"
@@ -15,19 +16,48 @@ import (
 	"github.com/xaroth/pbt-extract/ot"
 )
 
+// The game names stat description files .txt up to 3.29 and .csd from 3.30, with the same
+// content. A scope keeps the .txt name either way: datasets and pbt-engine use it as the id.
+const (
+	scopeExt = ".txt"
+	csdExt   = ".csd"
+)
+
+// scopeName returns the scope name of the stat description file at path.
+func scopeName(path string) string {
+	if base, ok := strings.CutSuffix(path, csdExt); ok {
+		return base + scopeExt
+	}
+	return path
+}
+
+// read reads the file of a scope: the .txt file, or the .csd file when there is no .txt.
+func read(r ot.Reader, name string) ([]byte, error) {
+	b, err := r.ReadFile(name)
+	base, ok := strings.CutSuffix(name, scopeExt)
+	if !ok || !errors.Is(err, fs.ErrNotExist) {
+		return b, err
+	}
+	if b, csdErr := r.ReadFile(base + csdExt); !errors.Is(csdErr, fs.ErrNotExist) {
+		return b, csdErr
+	}
+	return nil, err
+}
+
 // Load parses the files at paths and the files they include, each file once, in the order
-// they are first reached: a file comes before the files it includes.
+// they are first reached: a file comes before the files it includes. Each file is read by its
+// scope name, from the .csd file where the game has no .txt.
 func Load(r ot.Reader, paths ...string) ([]statdesc.Scope, error) {
 	var out []statdesc.Scope
 	loaded := map[string]bool{}
 	for _, root := range paths {
 		chain := map[string]bool{}
-		for p := root; p != "" && !loaded[p]; {
+		for p := scopeName(root); p != "" && !loaded[p]; {
 			if chain[p] {
 				return nil, fmt.Errorf("%s: include cycle", p)
 			}
 			chain[p] = true
-			b, err := r.ReadFile(p)
+			b, err := read(r, p)
 			if err != nil {
 				return nil, err
 			}
@@ -46,7 +76,7 @@ func Load(r ot.Reader, paths ...string) ([]statdesc.Scope, error) {
 }
 
 // Parse parses one UTF-16LE stat description file. name becomes the scope name; an include
-// becomes its parent.
+// becomes its parent, by its scope name.
 func Parse(name string, b []byte) (statdesc.Scope, error) {
 	if len(b)%2 != 0 {
 		return statdesc.Scope{}, fmt.Errorf("%s: odd length, not UTF-16", name)
@@ -101,7 +131,7 @@ func (p *parser) scope(name string) (statdesc.Scope, error) {
 			if err != nil {
 				return sc, err
 			}
-			sc.Parent = inc
+			sc.Parent = scopeName(inc)
 		case "has_identifiers", "no_identifiers":
 			// Marks whether description headers carry names; names are not used yet.
 		case "no_description":
@@ -270,7 +300,9 @@ func limit(s string) (statdesc.Limit, error) {
 		if b.s == "#" {
 			continue
 		}
-		x, err := strconv.ParseInt(b.s, 10, 32)
+		// 3.30 writes 1|99# for 1 to 99, its next variant being 100|#. A number with a stray #
+		// is the number.
+		x, err := strconv.ParseInt(strings.TrimSuffix(b.s, "#"), 10, 32)
 		if err != nil {
 			return l, fmt.Errorf("limit %q: %w", s, err)
 		}
