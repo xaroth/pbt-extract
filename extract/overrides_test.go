@@ -10,6 +10,7 @@ import (
 
 	"github.com/xaroth/pbt-engine/dataset"
 
+	"github.com/xaroth/pbt-extract/dat"
 	"github.com/xaroth/pbt-extract/dat/dattest"
 	"github.com/xaroth/pbt-extract/extract"
 )
@@ -178,5 +179,23 @@ func TestOverridesErrors(t *testing.T) {
 				t.Errorf("Dataset: got nil error, want an error")
 			}
 		})
+	}
+}
+
+func TestOverridesWithoutBlockingColumn(t *testing.T) {
+	t.Parallel()
+	null := dattest.Null
+	g := overridesGame(t, nil, [][]any{{0, smallIntSet, null}}, "SmallIntelligence")
+	def, _ := schema(t).Table("PassiveSkillOverrides")
+	older := dat.TableDef{Name: def.Name, Columns: def.Columns[:len(def.Columns)-1]}
+	g["Data/PassiveSkillOverrides.datc64"] = &fstest.MapFile{Data: dattest.Encode(t, older,
+		override("Tasalio3", "Tattoo of the Tasalio Shaman", "Art/curse.dds", []int{4}, []int32{5}, tasalioType, 0, 0, null, nil)[:len(def.Columns)-1])}
+	got, err := extract.Dataset(input(t, g, export()))
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := []dataset.NodeOverride{{ID: "Tasalio3", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 4, Value: 5}}, Icon: "Art/curse.png", Target: dataset.SmallIntelligence}}
+	if diff := cmp.Diff(want, got.Trees[0].Overrides, cmpopts.EquateEmpty()); diff != "" {
+		t.Errorf("overrides mismatch (-want +got):\n%s", diff)
 	}
 }

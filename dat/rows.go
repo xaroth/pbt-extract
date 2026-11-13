@@ -3,6 +3,7 @@ package dat
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // Ref is a row or foreignrow value: a row index into the referenced table. The zero Ref is
@@ -59,13 +60,14 @@ var (
 // a row past the end of the referenced table is not detected here: the step that joins the
 // two tables checks it. Fields must be exported. Lists of unknown element type are not
 // supported. Fields are checked against the schema before any row is decoded. A field whose
-// column the file lacks (see Read) is an error.
+// column the file lacks (see Read) is an error, unless its dat tag adds ",optional" after the
+// name: such a field stays zero, for columns that older game files do not have yet.
 func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	def, ok := s.Table(name)
 	if !ok {
 		return nil, fmt.Errorf("table %s not in schema", name)
 	}
-	cols, err := fieldColumns(s, def, reflect.TypeFor[T]())
+	cols, optional, err := fieldColumns(s, def, reflect.TypeFor[T]())
 	if err != nil {
 		return nil, fmt.Errorf("table %s: %w", name, err)
 	}
@@ -73,8 +75,8 @@ func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range cols {
-		if c >= t.Columns() {
+	for f, c := range cols {
+		if c >= t.Columns() && !optional[f] {
 			return nil, fmt.Errorf("table %s: column %s not in the file, whose rows hold the first %d columns", name, *def.Columns[c].Name, t.Columns())
 		}
 	}
@@ -82,6 +84,9 @@ func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	for r := range out {
 		rv := reflect.ValueOf(&out[r]).Elem()
 		for f, c := range cols {
+			if c >= t.Columns() {
+				continue
+			}
 			v, err := t.Value(r, c)
 			if err != nil {
 				return nil, fmt.Errorf("table %s row %d: %w", name, r, err)
@@ -92,31 +97,40 @@ func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	return out, nil
 }
 
-// fieldColumns returns the column index of each field of the struct type typ.
-func fieldColumns(s *Schema, def TableDef, typ reflect.Type) ([]int, error) {
+// fieldColumns returns the column index of each field of the struct type typ, and whether
+// the file may lack it.
+func fieldColumns(s *Schema, def TableDef, typ reflect.Type) (cols []int, optional []bool, err error) {
 	if typ.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("row type %s is not a struct", typ)
+		return nil, nil, fmt.Errorf("row type %s is not a struct", typ)
 	}
-	cols := make([]int, typ.NumField())
+	cols, optional = make([]int, typ.NumField()), make([]bool, typ.NumField())
 	for i := range typ.NumField() {
 		f := typ.Field(i)
 		if !f.IsExported() {
-			return nil, fmt.Errorf("field %s is not exported", f.Name)
+			return nil, nil, fmt.Errorf("field %s is not exported", f.Name)
 		}
-		name, ok := f.Tag.Lookup("dat")
+		tag, ok := f.Tag.Lookup("dat")
 		if !ok {
-			return nil, fmt.Errorf("field %s has no dat tag", f.Name)
+			return nil, nil, fmt.Errorf("field %s has no dat tag", f.Name)
+		}
+		name, opt, _ := strings.Cut(tag, ",")
+		switch opt {
+		case "":
+		case "optional":
+			optional[i] = true
+		default:
+			return nil, nil, fmt.Errorf("field %s: unknown dat tag option %q", f.Name, opt)
 		}
 		c, ok := def.Column(name)
 		if !ok {
-			return nil, fmt.Errorf("no column %s", name)
+			return nil, nil, fmt.Errorf("no column %s", name)
 		}
 		if err := check(s, def, def.Columns[c], f); err != nil {
-			return nil, fmt.Errorf("column %s: %w", name, err)
+			return nil, nil, fmt.Errorf("column %s: %w", name, err)
 		}
 		cols[i] = c
 	}
-	return cols, nil
+	return cols, optional, nil
 }
 
 func check(s *Schema, def TableDef, c Column, f reflect.StructField) error {
