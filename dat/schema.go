@@ -134,19 +134,20 @@ func (c Column) Kind() string {
 
 // ColumnName is our name for a column dat-schema leaves unnamed. Unnamed columns sit in gaps
 // between named ones, so a column is located by the named column After that starts its gap and
-// its Position (from 0) in that gap; Gap lists the Kind of every column in the gap. Unlike a
-// column index, this holds across patches that add or remove columns elsewhere in the table.
+// its Position (from 0) in that gap; each of Gaps lists the Kind of every column in a gap the
+// column may sit in, as the dat-schema of one patch or another lays it out. Unlike a column
+// index, this holds across patches that add or remove columns elsewhere in the table.
 type ColumnName struct {
 	Table    string
 	After    string
-	Gap      []string
+	Gaps     [][]string
 	Position int
 	Name     string
 }
 
 // NameColumns gives unnamed columns our names. Every column is located before any is named, so
 // on error s is unchanged. It fails when a table or After column is missing, when the gap after
-// After differs from Gap (dat-schema named, added, removed or retyped a column in it), or when
+// After is none of Gaps (dat-schema named, added, removed or retyped a column in it), or when
 // a name is taken.
 func (s *Schema) NameColumns(names []ColumnName) error {
 	index := make([]int, len(names))
@@ -175,8 +176,10 @@ func (s *Schema) locate(n ColumnName) (int, error) {
 	if !ok {
 		return 0, fmt.Errorf("no column %s", n.After)
 	}
-	if n.Position < 0 || n.Position >= len(n.Gap) {
-		return 0, fmt.Errorf("position %d outside a gap of %d", n.Position, len(n.Gap))
+	for _, g := range n.Gaps {
+		if n.Position < 0 || n.Position >= len(g) {
+			return 0, fmt.Errorf("position %d outside a gap of %d", n.Position, len(g))
+		}
 	}
 	var gap []string
 	for _, c := range t.Columns[after+1:] {
@@ -185,8 +188,8 @@ func (s *Schema) locate(n ColumnName) (int, error) {
 		}
 		gap = append(gap, c.Kind())
 	}
-	if !slices.Equal(gap, n.Gap) {
-		return 0, fmt.Errorf("unnamed columns after %s are %v, want %v", n.After, gap, n.Gap)
+	if !slices.ContainsFunc(n.Gaps, func(g []string) bool { return slices.Equal(gap, g) }) {
+		return 0, fmt.Errorf("unnamed columns after %s are %v, want one of %v", n.After, gap, n.Gaps)
 	}
 	return after + 1 + n.Position, nil
 }

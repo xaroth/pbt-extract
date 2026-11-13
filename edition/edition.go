@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"slices"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
@@ -96,8 +97,9 @@ func (e *Edition) ColumnNames() []dat.ColumnName {
 }
 
 // Load returns the edition game from its folder. Every constant needs an id, per, note and
-// source; every column name a table, after, gap, position, name, note and source; every value
-// map a table, column, league, map, note and source.
+// source; every column name a table, after, gap (or gaps, when dat-schema lays the gap out
+// differently by patch), position, name, note and source; every value map a table, column,
+// league, map, note and source.
 func Load(game string) (*Edition, error) {
 	var c struct {
 		Constants []Constant `json:"constants"`
@@ -112,13 +114,14 @@ func Load(game string) (*Edition, error) {
 	}
 	var n struct {
 		Columns []struct {
-			Table    string   `json:"table"`
-			After    string   `json:"after"`
-			Gap      []string `json:"gap"`
-			Position *int     `json:"position"`
-			Name     string   `json:"name"`
-			Note     string   `json:"note"`
-			Source   string   `json:"source"`
+			Table    string     `json:"table"`
+			After    string     `json:"after"`
+			Gap      []string   `json:"gap"`
+			Gaps     [][]string `json:"gaps"`
+			Position *int       `json:"position"`
+			Name     string     `json:"name"`
+			Note     string     `json:"note"`
+			Source   string     `json:"source"`
 		} `json:"columns"`
 	}
 	if err := readJSON(game, "columns.json", &n); err != nil {
@@ -126,11 +129,16 @@ func Load(game string) (*Edition, error) {
 	}
 	e := &Edition{Name: game, Constants: c.Constants}
 	for _, k := range n.Columns {
-		if k.Table == "" || k.After == "" || len(k.Gap) == 0 || k.Position == nil || k.Name == "" || k.Note == "" || k.Source == "" {
-			return nil, fmt.Errorf("%s/columns.json: column name %q needs table, after, gap, position, name, note and source", game, k.Name)
+		gaps := k.Gaps
+		if len(k.Gap) > 0 {
+			gaps = append(gaps, k.Gap)
+		}
+		if k.Table == "" || k.After == "" || (len(k.Gap) > 0) == (len(k.Gaps) > 0) || slices.ContainsFunc(gaps, func(g []string) bool { return len(g) == 0 }) ||
+			k.Position == nil || k.Name == "" || k.Note == "" || k.Source == "" {
+			return nil, fmt.Errorf("%s/columns.json: column name %q needs table, after, gap or gaps, position, name, note and source", game, k.Name)
 		}
 		e.Columns = append(e.Columns, ColumnName{
-			Table: k.Table, After: k.After, Gap: k.Gap, Position: *k.Position, Name: k.Name,
+			Table: k.Table, After: k.After, Gaps: gaps, Position: *k.Position, Name: k.Name,
 			Note:   k.Note,
 			Source: k.Source,
 		})

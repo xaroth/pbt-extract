@@ -47,35 +47,63 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 0,
       "name": "SmallAttributeReplaced",
-      "note": "A small attribute passive (+Strength, +Dexterity or +Intelligence alone) is replaced, not added to.",
+      "note": "A small attribute passive (+Strength, +Dexterity or +Intelligence alone) is replaced, not added to. From 3.30 the gap ends with a string, the version's English name (\"Templars\", \"Eternal Empire\"), not read.",
       "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
     },
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 1,
       "name": "SmallNormalReplaced",
@@ -85,16 +113,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 2,
       "name": "SmallAttributeAdditionsMin",
@@ -104,16 +146,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 3,
       "name": "SmallAttributeAdditionsMax",
@@ -123,16 +179,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 4,
       "name": "SmallNormalAdditionsMin",
@@ -142,16 +212,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 5,
       "name": "SmallNormalAdditionsMax",
@@ -161,16 +245,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 6,
       "name": "NotableAdditionsMin",
@@ -180,16 +278,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 7,
       "name": "NotableAdditionsMax",
@@ -199,16 +311,30 @@
     {
       "table": "AlternateTreeVersions",
       "after": "Id",
-      "gap": [
-        "bool",
-        "bool",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32",
-        "i32"
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
       ],
       "position": 8,
       "name": "NotableReplacementChance",
