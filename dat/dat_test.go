@@ -262,7 +262,7 @@ func TestColumn(t *testing.T) {
 func TestNameColumns(t *testing.T) {
 	t.Parallel()
 	// Table T ends with one unnamed list of unknown element type, after Names.
-	count := dat.ColumnName{Table: "T", After: "Names", Gap: []string{"[array]"}, Name: "Count"}
+	count := dat.ColumnName{Table: "T", After: "Names", Gaps: [][]string{{"[array]"}}, Name: "Count"}
 	with := func(f func(*dat.ColumnName)) []dat.ColumnName {
 		c := count
 		f(&c)
@@ -277,8 +277,10 @@ func TestNameColumns(t *testing.T) {
 		{name: "unknown table", names: with(func(c *dat.ColumnName) { c.Table = "X" }), wantErr: "table not in schema"},
 		{name: "unknown after", names: with(func(c *dat.ColumnName) { c.After = "X" }), wantErr: "no column X"},
 		{name: "position outside the gap", names: with(func(c *dat.ColumnName) { c.Position = 1 }), wantErr: "outside a gap of 1"},
-		{name: "kind differs", names: with(func(c *dat.ColumnName) { c.Gap = []string{"array"} }), wantErr: "are [[array]], want [array]"},
-		{name: "gap grew", names: with(func(c *dat.ColumnName) { c.Gap = []string{"[array]", "i32"} }), wantErr: "want [[array] i32]"},
+		{name: "another gap matches", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]", "string"}, {"[array]"}} })},
+		{name: "kind differs", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"array"}} }), wantErr: "are [[array]], want one of [[array]]"},
+		{name: "gap grew", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]", "i32"}} }), wantErr: "want one of [[[array] i32]]"},
+		{name: "position outside another gap", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]"}, {}} }), wantErr: "outside a gap of 0"},
 		{name: "column named by dat-schema", names: with(func(c *dat.ColumnName) { c.After = "Ints" }), wantErr: "unnamed columns after Ints are []"},
 		{name: "name taken", names: with(func(c *dat.ColumnName) { c.Name = "Id" }), wantErr: "already taken"},
 	}

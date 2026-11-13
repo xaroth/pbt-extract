@@ -73,20 +73,30 @@ func TestTimeless(t *testing.T) {
 	t.Parallel()
 	g := game(t)
 	timelessRows(t, g,
-		[][]any{treeVersion("None", false, 0, 0), treeVersion("Vaal", true, 0, 100), treeVersion("AbyssMurderous", true, 0, 0)},
+		// BlightJewel follows an Abyss version, so its index could not be its row
+		[][]any{treeVersion("None", false, 0, 0), treeVersion("Vaal", true, 0, 100), treeVersion("AbyssMurderous", true, 0, 0),
+			treeVersion("BlightJewel", false, 0, 0)},
 		[][]any{
 			altPassive("vaal_keystone_2_v2", 1, []uint32{4}, []int{4}, 1, 1, 100, 2, 1),
 			// stats stay in row order
 			altPassive("vaal_small_life", 1, []uint32{1, 2}, []int{3, 1}, 5, 9, 50, 0, 0),
 			altPassive("abyss_notable", 2, []uint32{3}, []int{1}, 1, 1, 100, 0, 0),
+			altPassive("blight_notable", 3, []uint32{3}, []int{1}, 1, 1, 100, 0, 0),
 		},
 		[][]any{
 			altAddition("abyss_addition", 2, []int32{3}, []int{1}, 1, 1, 100),
 			altAddition("vaal_addition", 1, []int32{3}, []int{2}, 7, 12, 30),
 		})
-	got, err := extract.Dataset(input(t, g, export()))
+	in := input(t, g, export())
+	var warnings []string
+	in.Warn = func(msg string) { warnings = append(warnings, msg) }
+	got, err := extract.Dataset(in)
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
+	}
+	wantWarnings := []string{"timeless version BlightJewel (row 3) follows an Abyss version; left out with its 1 replacements and 0 additions"}
+	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
+		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
 	}
 	want := []dataset.TimelessVersion{
 		{ID: "None"},
@@ -118,8 +128,6 @@ func TestTimelessErrors(t *testing.T) {
 		name                          string
 		versions, passives, additions [][]any
 	}{
-		{name: "Abyss version before a kept one",
-			versions: [][]any{treeVersion("None", false, 0, 0), treeVersion("AbyssMurderous", true, 0, 0), treeVersion("Vaal", true, 0, 100)}},
 		{name: "replacement without kind", passives: [][]any{altPassive("x", 1, nil, []int{1}, 1, 1, 100, 0, 0)}},
 		{name: "addition without kind", additions: [][]any{altAddition("x", 1, nil, []int{1}, 1, 1, 100)}},
 		{name: "unknown kind", passives: [][]any{altPassive("x", 1, []uint32{6}, []int{1}, 1, 1, 100, 0, 0)}},

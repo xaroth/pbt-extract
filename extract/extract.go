@@ -147,10 +147,6 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
-		timeless, err := timelessVersions(r, schema, len(d.Stats))
-		if err != nil {
-			return nil, err
-		}
 		// Variants of one stat mode share their overrides, so each warning is given once.
 		warned := map[string]bool{}
 		warn := func(msg string) {
@@ -158,6 +154,10 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 				warned[msg] = true
 				in.Warn(msg)
 			}
+		}
+		timeless, err := timelessVersions(r, schema, len(d.Stats), warn)
+		if err != nil {
+			return nil, err
 		}
 		overs := map[bool][]dataset.NodeOverride{}
 		nodeNames := map[uint32]string{}

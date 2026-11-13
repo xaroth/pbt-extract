@@ -117,3 +117,34 @@ func TestValuesFor(t *testing.T) {
 		t.Error("ValuesFor(3.x): got nil error, want an error")
 	}
 }
+
+func TestNameColumnsByLayout(t *testing.T) {
+	t.Parallel()
+	// AlternateTreeVersions as dat-schema 717d788 (3.26 to 3.29) and 1416c40 (3.30, with the
+	// version's name last) define it for poe1.
+	const versions = `{"name": "AlternateTreeVersions", "columns": [{"name": "Id", "type": "string"},
+		{"name": null, "type": "bool"}, {"name": null, "type": "bool"},
+		{"name": null, "type": "i32"}, {"name": null, "type": "i32"}, {"name": null, "type": "i32"},
+		{"name": null, "type": "i32"}, {"name": null, "type": "i32"}, {"name": null, "type": "i32"},
+		{"name": null, "type": "i32"}%s]}`
+	e, err := edition.Load("poe1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := slices.DeleteFunc(e.ColumnNames(), func(c dat.ColumnName) bool { return c.Table != "AlternateTreeVersions" })
+	for _, extra := range []string{"", `, {"name": null, "type": "string"}`} {
+		s, err := dat.ParseSchema([]byte(`{"version": 7, "tables": [` + fmt.Sprintf(versions, extra) + `]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.NameColumns(names); err != nil {
+			t.Fatalf("NameColumns with %q: %v", extra, err)
+		}
+		def, _ := s.Table("AlternateTreeVersions")
+		for name, want := range map[string]int{"SmallAttributeReplaced": 1, "NotableReplacementChance": 9} {
+			if got, ok := def.Column(name); !ok || got != want {
+				t.Errorf("with %q: Column(%q): got %d, %v, want %d, true", extra, name, got, ok, want)
+			}
+		}
+	}
+}
