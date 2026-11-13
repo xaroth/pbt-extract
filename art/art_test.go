@@ -1,6 +1,10 @@
 package art_test
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/xaroth/pbt-engine/dataset"
+	"golang.org/x/image/webp"
 
 	"github.com/xaroth/pbt-extract/art"
 	"github.com/xaroth/pbt-extract/treeexport"
@@ -39,15 +44,60 @@ func allSprites() sprites {
 	}
 }
 
-func assets() fstest.MapFS {
+// assets holds each sheet of allSprites: a PNG sheet as a real PNG, others as their name.
+func assets(t *testing.T) fstest.MapFS {
+	t.Helper()
 	fsys := fstest.MapFS{}
 	for _, zooms := range allSprites() {
 		for _, s := range zooms {
 			name := s.Filename[strings.LastIndex(s.Filename, "/")+1 : strings.Index(s.Filename, "?")]
-			fsys[name] = &fstest.MapFile{Data: []byte(name)}
+			data := []byte(name)
+			if strings.HasSuffix(name, ".png") {
+				data = encodePNG(t, gradient())
+			}
+			fsys[name] = &fstest.MapFile{Data: data}
 		}
 	}
 	return fsys
+}
+
+// gradient is a sheet with distinct colors and alpha levels, fully transparent included.
+func gradient() *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
+	for y := range 16 {
+		for x := range 16 {
+			img.SetNRGBA(x, y, color.NRGBA{R: uint8(16 * x), G: uint8(16 * y), B: uint8(x * y), A: uint8(17 * ((x + y) % 16))})
+		}
+	}
+	return img
+}
+
+func encodePNG(t *testing.T, img image.Image) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	if err := png.Encode(&b, img); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+// checkWebP checks that b is a WebP with the pixels of want.
+func checkWebP(t *testing.T, name string, b []byte, want *image.NRGBA) {
+	t.Helper()
+	img, err := webp.Decode(bytes.NewReader(b))
+	if err != nil {
+		t.Errorf("%s: %v", name, err)
+		return
+	}
+	// Both as NRGBA, since a conversion through premultiplied RGBA would hide alpha errors.
+	got, ok := img.(*image.NRGBA)
+	if !ok {
+		t.Errorf("%s: decoded as %T, want *image.NRGBA", name, img)
+		return
+	}
+	if got.Rect != want.Rect || !bytes.Equal(got.Pix, want.Pix) {
+		t.Errorf("%s: pixels differ from the source", name)
+	}
 }
 
 func tree() *treeexport.Export {
@@ -69,7 +119,7 @@ func TestBuild(t *testing.T) {
 	t.Parallel()
 	a, err := art.Build(sprites{
 		"normalActive": {"0.5": sprite("skills-1.jpg", "a.png"), "0.1": sprite("skills-0.jpg", "a.png")},
-	}, assets())
+	}, assets(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +161,30 @@ func TestBuild(t *testing.T) {
 			t.Errorf("%s: got %q, want %q", f.Name, b, f.Name)
 		}
 	}
+}
+
+func TestBuildWritesPNGSheetsAsWebP(t *testing.T) {
+	t.Parallel()
+	src := gradient()
+	a, err := art.Build(sprites{"mastery": {"0.1": sprite("mastery-0.png", "m.png")}}, fstest.MapFS{"mastery-0.png": {Data: encodePNG(t, src)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Manifest.Sprites["mastery"][0].File; got != "mastery-0.webp" {
+		t.Errorf("sheet file = %s, want mastery-0.webp", got)
+	}
+	if len(a.Manifest.Files) != 1 || a.Manifest.Files[0].Name != "mastery-0.webp" {
+		t.Errorf("Files = %v, want mastery-0.webp alone", a.Manifest.Files)
+	}
+	dir := t.TempDir()
+	if err := a.Write(dir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "mastery-0.webp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkWebP(t, "mastery-0.webp", b, src)
 }
 
 func TestBuildChecksTrees(t *testing.T) {
@@ -155,6 +229,18 @@ func TestBuildChecksTrees(t *testing.T) {
 			wantErr: "file does not exist",
 		},
 		{
+			name: "PNG and WebP sheets of one name",
+			edit: func(s sprites, _ *treeexport.Export) {
+				s["mastery"]["0.5"] = sprite("mastery-0.webp", "m.png")
+			},
+			assets: func() fstest.MapFS {
+				fsys := assets(t)
+				fsys["mastery-0.webp"] = &fstest.MapFile{Data: []byte("webp")}
+				return fsys
+			}(),
+			wantErr: "are both written as mastery-0.webp",
+		},
+		{
 			name: "zoom not a number",
 			edit: func(s sprites, _ *treeexport.Export) {
 				s["normalActive"]["x"] = s["normalActive"]["0.1"]
@@ -169,7 +255,7 @@ func TestBuildChecksTrees(t *testing.T) {
 			testCase.edit(s, e)
 			fsys := testCase.assets
 			if fsys == nil {
-				fsys = assets()
+				fsys = assets(t)
 			}
 			_, err := art.Build(s, fsys, e)
 			if testCase.wantErr == "" {

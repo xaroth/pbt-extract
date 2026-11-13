@@ -4,14 +4,12 @@
 package art
 
 import (
-	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image/png"
 	"io/fs"
 	"maps"
 	"net/url"
@@ -40,22 +38,26 @@ type Art struct {
 // every zoom level. The class illustrations of a tree are not in the export's sheets.
 func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees ...*treeexport.Export) (*Art, error) {
 	a := &Art{Manifest: dataset.ArtManifest{Sprites: make(map[string][]dataset.SpriteSheet, len(sprites))}, Files: map[string][]byte{}}
+	sources := map[string]string{}
 	for kind, zooms := range sprites {
 		for z, s := range zooms {
 			zoom, err := strconv.ParseFloat(z, 64)
 			if err != nil {
 				return nil, fmt.Errorf("sprite %s: zoom %q: %w", kind, z, err)
 			}
-			name, err := sheetName(s.Filename)
+			src, err := sheetName(s.Filename)
 			if err != nil {
 				return nil, fmt.Errorf("sprite %s at %s: %w", kind, z, err)
 			}
-			if _, ok := a.Files[name]; !ok {
-				b, err := fs.ReadFile(assets, name)
+			name := webpName(src)
+			if prev, ok := sources[name]; !ok {
+				b, err := readSheet(assets, src, name)
 				if err != nil {
 					return nil, fmt.Errorf("sprite %s at %s: %w", kind, z, err)
 				}
-				a.Files[name] = b
+				a.Files[name], sources[name] = b, src
+			} else if prev != src {
+				return nil, fmt.Errorf("sprite %s at %s: sheets %s and %s are both written as %s", kind, z, prev, src, name)
 			}
 			a.Manifest.Sprites[kind] = append(a.Manifest.Sprites[kind], dataset.SpriteSheet{Zoom: zoom, File: name, Width: s.W, Height: s.H, Coords: sheetRects(s.Coords)})
 		}
@@ -72,8 +74,20 @@ func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees 
 	return a, nil
 }
 
-// AddFaces adds each face as a PNG file and names it in the manifest: class faces by character
-// id, ascendancy faces by ascendancy id.
+// readSheet reads the sheet src from assets, converted to WebP when it is written as name.
+func readSheet(assets fs.FS, src, name string) ([]byte, error) {
+	b, err := fs.ReadFile(assets, src)
+	if err != nil || name == src {
+		return b, err
+	}
+	if b, err = pngToWebP(b); err != nil {
+		return nil, fmt.Errorf("%s: %w", src, err)
+	}
+	return b, nil
+}
+
+// AddFaces adds each face as a lossless WebP file and names it in the manifest: class faces by
+// character id, ascendancy faces by ascendancy id.
 func (a *Art) AddFaces(f Faces) error {
 	var err error
 	if a.Manifest.ClassFaces, err = a.addFaces(a.Manifest.ClassFaces, f.Classes, "class", classFaceFile); err != nil {
@@ -98,11 +112,11 @@ func (a *Art) addFaces(names map[string]string, faces []Face, kind string, file 
 		if _, dup := a.Files[name]; dup {
 			return nil, fmt.Errorf("%s face %s: file %s already in the art", kind, f.ID, name)
 		}
-		var b bytes.Buffer
-		if err := png.Encode(&b, f.Image); err != nil {
+		b, err := encodeWebP(f.Image)
+		if err != nil {
 			return nil, fmt.Errorf("%s face %s: %w", kind, f.ID, err)
 		}
-		a.Files[name] = b.Bytes()
+		a.Files[name] = b
 		names[f.ID] = name
 	}
 	return names, nil
@@ -194,7 +208,7 @@ func resolve(m dataset.ArtManifest, kind, icon string) error {
 	return nil
 }
 
-// Write writes the sheets and the manifest into dir.
+// Write writes the sheets, the faces and the manifest into dir.
 func (a *Art) Write(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
