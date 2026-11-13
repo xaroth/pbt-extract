@@ -29,27 +29,9 @@ import (
 // ManifestName is the manifest's file name in the art directory.
 const ManifestName = "manifest.json"
 
-// Manifest lists the art files, where each tree icon is on the sheets, and each class's face.
-type Manifest struct {
-	Files []dataset.File `json:"files"`
-	// Sprites holds per kind, such as "normalActive", one sheet per zoom level, by ascending zoom.
-	Sprites map[string][]Sheet `json:"sprites"`
-	// ClassFaces holds the file of each base class's face by character id.
-	ClassFaces map[string]string `json:"classFaces,omitempty"`
-}
-
-// Sheet places the icons of one kind at one zoom level on File.
-type Sheet struct {
-	Zoom   float64                    `json:"zoom"`
-	File   string                     `json:"file"`
-	Width  int                        `json:"width"`
-	Height int                        `json:"height"`
-	Coords map[string]treeexport.Rect `json:"coords"`
-}
-
 // Art is a built manifest with the content of the files it lists.
 type Art struct {
-	Manifest Manifest
+	Manifest dataset.ArtManifest
 	Files    map[string][]byte
 }
 
@@ -57,7 +39,7 @@ type Art struct {
 // that every node icon and group background of each tree resolves on the sheets of its kind at
 // every zoom level. The class illustrations of a tree are not in the export's sheets.
 func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees ...*treeexport.Export) (*Art, error) {
-	a := &Art{Manifest: Manifest{Sprites: make(map[string][]Sheet, len(sprites))}, Files: map[string][]byte{}}
+	a := &Art{Manifest: dataset.ArtManifest{Sprites: make(map[string][]dataset.SpriteSheet, len(sprites))}, Files: map[string][]byte{}}
 	for kind, zooms := range sprites {
 		for z, s := range zooms {
 			zoom, err := strconv.ParseFloat(z, 64)
@@ -75,14 +57,14 @@ func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees 
 				}
 				a.Files[name] = b
 			}
-			a.Manifest.Sprites[kind] = append(a.Manifest.Sprites[kind], Sheet{Zoom: zoom, File: name, Width: s.W, Height: s.H, Coords: s.Coords})
+			a.Manifest.Sprites[kind] = append(a.Manifest.Sprites[kind], dataset.SpriteSheet{Zoom: zoom, File: name, Width: s.W, Height: s.H, Coords: sheetRects(s.Coords)})
 		}
-		slices.SortFunc(a.Manifest.Sprites[kind], func(x, y Sheet) int { return cmp.Compare(x.Zoom, y.Zoom) })
+		slices.SortFunc(a.Manifest.Sprites[kind], func(x, y dataset.SpriteSheet) int { return cmp.Compare(x.Zoom, y.Zoom) })
 	}
 	a.listFiles()
 	var errs []error
 	for _, t := range trees {
-		errs = append(errs, a.Manifest.checkTree(t))
+		errs = append(errs, checkTree(a.Manifest, t))
 	}
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -120,6 +102,17 @@ func (a *Art) listFiles() {
 	}
 }
 
+func sheetRects(coords map[string]treeexport.Rect) map[string]dataset.SheetRect {
+	if coords == nil {
+		return nil
+	}
+	rects := make(map[string]dataset.SheetRect, len(coords))
+	for icon, r := range coords {
+		rects[icon] = dataset.SheetRect{X: r.X, Y: r.Y, W: r.W, H: r.H}
+	}
+	return rects
+}
+
 // sheetName is the base name of a sheet URL, which is the file's name in the assets folder.
 func sheetName(filename string) (string, error) {
 	u, err := url.Parse(filename)
@@ -146,14 +139,14 @@ func iconKinds(n treeexport.Node) []string {
 	return []string{"normalActive", "normalInactive"}
 }
 
-func (m Manifest) checkTree(t *treeexport.Export) error {
+func checkTree(m dataset.ArtManifest, t *treeexport.Export) error {
 	var errs []error
 	need := func(icon string, kinds ...string) {
 		if icon == "" {
 			return
 		}
 		for _, k := range kinds {
-			if err := m.resolve(k, icon); err != nil {
+			if err := resolve(m, k, icon); err != nil {
 				errs = append(errs, fmt.Errorf("tree %s: %w", t.Tree, err))
 			}
 		}
@@ -173,7 +166,7 @@ func (m Manifest) checkTree(t *treeexport.Export) error {
 	return errors.Join(errs...)
 }
 
-func (m Manifest) resolve(kind, icon string) error {
+func resolve(m dataset.ArtManifest, kind, icon string) error {
 	sheets := m.Sprites[kind]
 	if len(sheets) == 0 {
 		return fmt.Errorf("no %s sprites for %s", kind, icon)
