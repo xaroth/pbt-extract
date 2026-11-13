@@ -80,7 +80,8 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	}
 
 	chars, err := readTable(r, schema, "Characters", "Id", "Name", "IntegerId",
-		"BaseStrength", "BaseDexterity", "BaseIntelligence", "BaseMaxLife", "BaseMaxMana")
+		"BaseStrength", "BaseDexterity", "BaseIntelligence", "BaseMaxLife", "BaseMaxMana",
+		"MinDamage", "MaxDamage", "WeaponSpeed")
 	if err != nil {
 		return nil, err
 	}
@@ -115,8 +116,12 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	if d.Quests, err = quests(r, schema, len(d.Stats)); err != nil {
 		return nil, err
 	}
+	grants, err := grantLevels(r, schema)
+	if err != nil {
+		return nil, err
+	}
 	var names itemNames
-	if d.Items, d.Mods, names, err = items(r, schema, len(d.Stats)); err != nil {
+	if d.Items, d.Mods, names, err = items(r, schema, len(d.Stats), grants); err != nil {
 		return nil, err
 	}
 	text.ItemClassNames, text.BaseNames, text.ModNames = names.classes, names.bases, names.mods
@@ -129,7 +134,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		return nil, err
 	}
 	if len(in.Trees) > 0 {
-		tt, err := readTreeTables(r, schema, d.Stats)
+		tt, err := readTreeTables(r, schema, d.Stats, grants)
 		if err != nil {
 			return nil, err
 		}
@@ -216,6 +221,9 @@ func character(r ot.Reader, t table, row int, handles map[string]uint32) (datase
 		{"BaseIntelligence", &c.BaseIntelligence},
 		{"BaseMaxLife", &c.BaseMaxLife},
 		{"BaseMaxMana", &c.BaseMaxMana},
+		{"MinDamage", &c.UnarmedDamage.Min},
+		{"MaxDamage", &c.UnarmedDamage.Max},
+		{"WeaponSpeed", &c.UnarmedAttackTime},
 	} {
 		if *f.dst, err = t.i32(row, f.col); err != nil {
 			return c, err

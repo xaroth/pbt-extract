@@ -35,6 +35,8 @@ Each tree of a dataset carries the game's tattoos and runegrafts from `PassiveSk
 
 Stat descriptions are read from each `Metadata/StatDescriptions` file as `.txt`, or as `.csd` where the client has no `.txt` (3.30 on); a scope keeps the `.txt` name either way. A limit bound with a stray `#`, such as `1|99#`, reads as its number.
 
+Each character carries its unarmed damage and attack time from `Characters` (`MinDamage`, `MaxDamage`, `WeaponSpeed`). A mod carries the skills it grants from `Mods.GrantedEffectsPerLevelKeys`, and a tree node the skill it grants from `PassiveSkills.GrantedEffectsPerLevel`, each as a granted effect and level; a ruthless tree reads `GrantedEffectsPerLevelHardmode` for every node, as some nodes without `HasHardmodeAlternate` grant a ruthless skill of their own. Monster mods carry no granted skills, and `Mods.GrantedEffectRuthless` is not read.
+
 Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
 `edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed, `totems.json` for the totems of supports, a link the game data does not hold; `values.json` for how the game files of older leagues number a column whose values the dat-schema enumeration numbers otherwise.
