@@ -1,6 +1,6 @@
 // Package art builds the app's art: the passive tree's sprite sheets from the tree export, the
-// face of each base class from the game's UI art, and a manifest that places each tree icon on a
-// sheet at each zoom level and names each class's face.
+// faces of the base classes and their ascendancies from the game's UI art, and a manifest that
+// places each tree icon on a sheet at each zoom level and names each face.
 package art
 
 import (
@@ -72,25 +72,40 @@ func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees 
 	return a, nil
 }
 
-// AddClassFaces adds each face as a PNG file and names it in the manifest.
-func (a *Art) AddClassFaces(faces []ClassFace) error {
-	if a.Manifest.ClassFaces == nil {
-		a.Manifest.ClassFaces = make(map[string]string, len(faces))
+// AddFaces adds each face as a PNG file and names it in the manifest: class faces by character
+// id, ascendancy faces by ascendancy id.
+func (a *Art) AddFaces(f Faces) error {
+	var err error
+	if a.Manifest.ClassFaces, err = a.addFaces(a.Manifest.ClassFaces, f.Classes, "class", classFaceFile); err != nil {
+		return err
 	}
-	for _, f := range faces {
-		name := faceFile(f.Character)
-		if _, dup := a.Files[name]; dup {
-			return fmt.Errorf("class face %s: file %s already in the art", f.Character, name)
-		}
-		var b bytes.Buffer
-		if err := png.Encode(&b, f.Image); err != nil {
-			return fmt.Errorf("class face %s: %w", f.Character, err)
-		}
-		a.Files[name] = b.Bytes()
-		a.Manifest.ClassFaces[f.Character] = name
+	if a.Manifest.AscendancyFaces, err = a.addFaces(a.Manifest.AscendancyFaces, f.Ascendancies, "ascendancy", ascendancyFaceFile); err != nil {
+		return err
 	}
 	a.listFiles()
 	return nil
+}
+
+func (a *Art) addFaces(names map[string]string, faces []Face, kind string, file func(string) string) (map[string]string, error) {
+	if len(faces) == 0 {
+		return names, nil
+	}
+	if names == nil {
+		names = make(map[string]string, len(faces))
+	}
+	for _, f := range faces {
+		name := file(f.ID)
+		if _, dup := a.Files[name]; dup {
+			return nil, fmt.Errorf("%s face %s: file %s already in the art", kind, f.ID, name)
+		}
+		var b bytes.Buffer
+		if err := png.Encode(&b, f.Image); err != nil {
+			return nil, fmt.Errorf("%s face %s: %w", kind, f.ID, err)
+		}
+		a.Files[name] = b.Bytes()
+		names[f.ID] = name
+	}
+	return names, nil
 }
 
 // listFiles lists the files in the manifest by name.
