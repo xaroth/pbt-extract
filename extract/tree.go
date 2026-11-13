@@ -28,16 +28,19 @@ type treeTables struct {
 	passives, mastery, masteryGroups, buffTemplates, buffDefs table
 	byGraphID, byMasteryHash                                  map[int]int
 	stats                                                     []dataset.Stat
-	warn                                                      func(string)
+	// grants holds the skill of each GrantedEffectsPerLevel row.
+	grants []dataset.GrantedSkill
+	warn   func(string)
 }
 
-func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat) (*treeTables, error) {
-	t := &treeTables{stats: stats}
+func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat, grants []dataset.GrantedSkill) (*treeTables, error) {
+	t := &treeTables{stats: stats, grants: grants}
 	var err error
 	if t.passives, err = readTable(r, schema, "PassiveSkills", "PassiveSkillGraphId", "Stats",
 		"Stat1Value", "Stat2Value", "Stat3Value", "Stat4Value", "Stat5Value", "PassiveSkillBuffs", "SkillPointsGranted",
 		"HasHardmodeAlternate", "StatsHardmode", "Stat1ValueHardmode", "Stat2ValueHardmode", "Stat3ValueHardmode",
-		"Stat4ValueHardmode", "Stat5ValueHardmode", "BuffsHardmode", "SkillPointsGrantedHardmode", "MasteryGroup"); err != nil {
+		"Stat4ValueHardmode", "Stat5ValueHardmode", "BuffsHardmode", "SkillPointsGrantedHardmode", "MasteryGroup",
+		"GrantedEffectsPerLevel", "GrantedEffectsPerLevelHardmode"); err != nil {
 		return nil, err
 	}
 	if t.masteryGroups, err = readTable(r, schema, "PassiveSkillMasteryGroups", "MasteryCountStat"); err != nil {
@@ -169,7 +172,16 @@ func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode boo
 	if hard {
 		statsCol, valueSuffix, buffsCol, pointsCol = "StatsHardmode", "ValueHardmode", "BuffsHardmode", "SkillPointsGrantedHardmode"
 	}
+	grantCol := "GrantedEffectsPerLevel"
+	// Unlike the stat columns, the Ruthless grant is filled for every node, and some nodes
+	// without HasHardmodeAlternate grant a Ruthless skill of their own.
+	if hardmode {
+		grantCol = "GrantedEffectsPerLevelHardmode"
+	}
 	var err error
+	if nd.GrantedSkill, err = tt.grant(row, grantCol); err != nil {
+		return nd, err
+	}
 	if nd.Stats, err = tt.statValues(p, row, statsCol, "Stat%d"+valueSuffix); err != nil {
 		return nd, err
 	}
@@ -210,6 +222,19 @@ func (tt *treeTables) node(n treeexport.Node, e *treeexport.Export, hardmode boo
 		nd.MasteryEffects = append(nd.MasteryEffects, dataset.MasteryEffect{ID: me.Effect, Stats: svs})
 	}
 	return edges(nd, n, e)
+}
+
+// grant returns the skill the GrantedEffectsPerLevel row in col grants, or nil.
+func (tt *treeTables) grant(row int, col string) (*dataset.GrantedSkill, error) {
+	g, err := tt.passives.ref(row, col)
+	if err != nil || g < 0 {
+		return nil, err
+	}
+	if g >= len(tt.grants) {
+		return nil, fmt.Errorf("column %s: GrantedEffectsPerLevel row %d out of range", col, g)
+	}
+	s := tt.grants[g]
+	return &s, nil
 }
 
 // edges sets nd's neighbours from the node's edges in both directions.

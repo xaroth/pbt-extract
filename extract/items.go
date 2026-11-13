@@ -183,6 +183,7 @@ type modRow struct {
 	SpawnWeights      []int32   `dat:"SpawnWeight_Values"`
 	GenerationTags    []dat.Ref `dat:"GenerationWeight_TagsKeys" ref:"Tags"`
 	GenerationWeights []int32   `dat:"GenerationWeight_Values"`
+	GrantedSkills     []dat.Ref `dat:"GrantedEffectsPerLevelKeys" ref:"GrantedEffectsPerLevel"`
 	Stat1             dat.Ref   `dat:"StatsKey1" ref:"Stats"`
 	Stat2             dat.Ref   `dat:"StatsKey2" ref:"Stats"`
 	Stat3             dat.Ref   `dat:"StatsKey3" ref:"Stats"`
@@ -269,15 +270,16 @@ type itemNames struct {
 // the mods of modDomains, and the bench crafts and essences that add one of them to items of
 // those classes. Classes, bases, mods and bench crafts are in table order, essence mods in the
 // order essences first add them. A base's tags are its own, then those of its item template
-// chain (see ot.ItemTags). nStats is the number of rows in Stats.
-func items(r ot.Reader, s *dat.Schema, nStats int) (*dataset.Items, []dataset.Mod, itemNames, error) {
+// chain (see ot.ItemTags). nStats is the number of rows in Stats; grants holds the skill of each
+// GrantedEffectsPerLevel row.
+func items(r ot.Reader, s *dat.Schema, nStats int, grants []dataset.GrantedSkill) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
 	tags, err := readIDs(r, s, "Tags")
 	if err != nil {
 		return nil, nil, names, err
 	}
 	it := &dataset.Items{Tags: tags}
-	mods, modIDs, err := itemMods(r, s, it.Tags, nStats, &names)
+	mods, modIDs, err := itemMods(r, s, it.Tags, nStats, grants, &names)
 	if err != nil {
 		return nil, nil, names, err
 	}
@@ -630,9 +632,10 @@ func flaskValues(r ot.Reader, s *dat.Schema, base func(string, int, dat.Ref, boo
 	return nil
 }
 
-// itemMods reads the mods of modDomains and adds their names to names. It returns the mods and
-// the id of each kept Mods row.
-func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, names *itemNames) ([]dataset.Mod, map[int]string, error) {
+// itemMods reads the mods of modDomains, with the skills they grant (grants holds the skill of
+// each GrantedEffectsPerLevel row), and adds their names to names. It returns the mods and the
+// id of each kept Mods row.
+func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []dataset.GrantedSkill, names *itemNames) ([]dataset.Mod, map[int]string, error) {
 	rows, err := readRows[modRow](r, s, "Mods")
 	if err != nil {
 		return nil, nil, err
@@ -652,6 +655,9 @@ func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, names *item
 			continue
 		}
 		mod, err := itemMod(m, types, families, tags, nStats)
+		if err == nil {
+			mod.GrantedSkills, err = lookupAll(m.GrantedSkills, grants, "GrantedEffectsPerLevel")
+		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("table Mods row %d: %w", row, err)
 		}

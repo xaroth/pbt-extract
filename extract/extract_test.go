@@ -24,7 +24,8 @@ const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTable
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
 		{"name": "BaseStrength", "type": "i32"}, {"name": "BaseDexterity", "type": "i32"},
 		{"name": "BaseIntelligence", "type": "i32"}, {"name": "BaseMaxLife", "type": "i32"},
-		{"name": "BaseMaxMana", "type": "i32"}]},
+		{"name": "BaseMaxMana", "type": "i32"}, {"name": "MinDamage", "type": "i32"}, {"name": "MaxDamage", "type": "i32"},
+		{"name": "WeaponSpeed", "type": "i32"}]},
 	{"name": "PassiveSkills", "columns": [
 		{"name": "PassiveSkillGraphId", "type": "u16"},
 		{"name": "Stats", "type": "foreignrow", "array": true},
@@ -41,6 +42,8 @@ const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTable
 		{"name": "BuffsHardmode", "type": "foreignrow", "array": true},
 		{"name": "SkillPointsGrantedHardmode", "type": "i32"},
 		{"name": "MasteryGroup", "type": "foreignrow"},
+		{"name": "GrantedEffectsPerLevel", "type": "foreignrow"},
+		{"name": "GrantedEffectsPerLevelHardmode", "type": "foreignrow"},
 		{"name": "Name", "type": "string"}, {"name": "Icon_DDSFile", "type": "string"}]},
 	{"name": "PassiveSkillMasteryGroups", "columns": [{"name": "MasteryCountStat", "type": "foreignrow"}]},
 	{"name": "PassiveSkillMasteryEffects", "columns": [
@@ -106,7 +109,8 @@ func questReward(flag int, points int32, stats []int, vals []int32, quest int, a
 }
 
 // passive is one PassiveSkills row: graph id, stats and values, buffs, points, then the
-// hardmode flag, stats and values. Hardmode buffs and points, name and icon are empty.
+// hardmode flag, stats and values. Hardmode buffs and points, mastery group, granted skills,
+// name and icon are empty.
 func passive(id uint16, stats []int, vals [5]int32, buffs []int, points int32, hard bool, hStats []int, hVals [5]int32) []any {
 	row := []any{id, stats}
 	for _, v := range vals {
@@ -116,13 +120,19 @@ func passive(id uint16, stats []int, vals [5]int32, buffs []int, points int32, h
 	for _, v := range hVals {
 		row = append(row, v)
 	}
-	return append(row, []int(nil), int32(0), dattest.Null, "", "")
+	return append(row, []int(nil), int32(0), dattest.Null, dattest.Null, dattest.Null, "", "")
+}
+
+// granting sets the GrantedEffectsPerLevel rows a passive row grants, outside and in Ruthless.
+func granting(row []any, grant, hardmode int) []any {
+	row[len(row)-4], row[len(row)-3] = grant, hardmode
+	return row
 }
 
 // masteryPassive is a PassiveSkills row of a mastery node in mastery group 0.
 func masteryPassive(id uint16) []any {
 	row := passive(id, nil, [5]int32{}, nil, 0, false, nil, [5]int32{})
-	row[len(row)-3] = 0
+	row[len(row)-5] = 0
 	return row
 }
 
@@ -135,12 +145,13 @@ func game(t *testing.T) fstest.MapFS {
 			[]any{"level"}, []any{"life_per_level"}, []any{"base_speed"}, []any{"base_strength"}, []any{"aura_damage_+%"},
 		)},
 		"Data/Characters.datc64": {Data: encode(t, "Characters",
-			[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
+			[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34), int32(2), int32(8), int32(833)},
 		)},
 		"Data/PassiveSkills.datc64": {Data: encode(t, "PassiveSkills",
 			passive(1, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
-			passive(2, []int{3, 1}, [5]int32{10, 5}, []int{0, 1}, 1, true, []int{3}, [5]int32{20}),
-			masteryPassive(3),
+			granting(passive(2, []int{3, 1}, [5]int32{10, 5}, []int{0, 1}, 1, true, []int{3}, [5]int32{20}), 1, 0),
+			// grants a Ruthless skill of its own without HasHardmodeAlternate
+			granting(masteryPassive(3), dattest.Null, 2),
 		)},
 		"Data/PassiveSkillMasteryGroups.datc64": {Data: encode(t, "PassiveSkillMasteryGroups", []any{2})},
 		"Data/PassiveSkillMasteryEffects.datc64": {Data: encode(t, "PassiveSkillMasteryEffects",
@@ -252,14 +263,19 @@ func TestDataset(t *testing.T) {
 	standard.Stats = []dataset.StatValue{{Stat: 1, Value: 5}, {Stat: 3, Value: 10}}
 	standard.Buffs = [][]dataset.StatValue{{{Stat: 4, Value: -5}}}
 	standard.SkillPoints = 1
+	standard.GrantedSkill = &dataset.GrantedSkill{Effect: "Fireball", Level: 1}
 	ruthless.Stats = []dataset.StatValue{{Stat: 3, Value: 20}}
+	ruthless.GrantedSkill = &dataset.GrantedSkill{Effect: "Fireball", Level: 2}
+	ruthlessTree := baseTree("ruthless", ruthless)
+	ruthlessTree.Nodes[2].GrantedSkill = &dataset.GrantedSkill{Effect: "SupportEcho", Level: 1}
 
 	want := &dataset.Dataset{
 		Stats: []dataset.Stat{{ID: "level"}, {ID: "life_per_level"}, {ID: "base_speed"}, {ID: "base_strength"}, {ID: "aura_damage_+%"}},
 		Characters: []dataset.Character{{
 			ID:           "Metadata/Characters/Str/Str",
 			BaseStrength: 32, BaseDexterity: 14, BaseIntelligence: 14, BaseMaxLife: 38, BaseMaxMana: 34,
-			Stats: []dataset.StatValue{{Stat: 0, Value: 1}, {Stat: 1, Value: 12}},
+			Stats:         []dataset.StatValue{{Stat: 0, Value: 1}, {Stat: 1, Value: 12}},
+			UnarmedDamage: dataset.ValueRange{Min: 2, Max: 8}, UnarmedAttackTime: 833,
 		}},
 		Constants: []dataset.Constant{{ID: "life_per_strength", Value: 1, Per: 2}},
 		// the league mechanic row is left out; reward stats are sorted
@@ -268,7 +284,7 @@ func TestDataset(t *testing.T) {
 			{Quest: "a5q6", Flag: "a5q6-CompletedBoss", Act: 5, RefundPoints: 2, Stats: []dataset.StatValue{{Stat: 3, Value: -20}, {Stat: 4, Value: -30}}},
 			{Flag: "LabyrinthComplete1", AscendancyPoints: 2},
 		},
-		Trees: []dataset.Tree{baseTree("standard", standard), baseTree("ruthless", ruthless)},
+		Trees: []dataset.Tree{baseTree("standard", standard), ruthlessTree},
 		Texts: []dataset.Text{{
 			Language:       "en",
 			NodeNames:      []dataset.NodeName{{ID: 1, Name: "MARAUDER"}, {ID: 2, Name: "Might"}, {ID: 3, Name: "Mastery"}},
@@ -390,6 +406,13 @@ func TestDatasetErrors(t *testing.T) {
 				passive(3, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
 			)}
 		}},
+		{name: "granted skill out of range", game: func(t *testing.T, g fstest.MapFS) {
+			g["Data/PassiveSkills.datc64"] = &fstest.MapFile{Data: encode(t, "PassiveSkills",
+				granting(passive(1, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}), 9, dattest.Null),
+				passive(2, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
+				passive(3, nil, [5]int32{}, nil, 0, false, nil, [5]int32{}),
+			)}
+		}},
 		{name: "buff with fewer values than stats", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encodeBuffDefs(t, buffDef{id: "a", stats: []int{4, 4, 4}}, buffDef{id: "b"})}
 		}},
@@ -433,13 +456,13 @@ func TestDatasetErrors(t *testing.T) {
 		}},
 		{name: "class without Characters row", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/Characters.datc64"] = &fstest.MapFile{Data: encode(t, "Characters",
-				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(5), int32(32), int32(14), int32(14), int32(38), int32(34)},
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(5), int32(32), int32(14), int32(14), int32(38), int32(34), int32(2), int32(8), int32(833)},
 			)}
 		}},
 		{name: "repeated IntegerId", game: func(t *testing.T, g fstest.MapFS) {
 			g["Data/Characters.datc64"] = &fstest.MapFile{Data: encode(t, "Characters",
-				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
-				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34)},
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34), int32(2), int32(8), int32(833)},
+				[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34), int32(2), int32(8), int32(833)},
 			)}
 		}},
 	}
