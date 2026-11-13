@@ -155,8 +155,8 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 				in.Warn(msg)
 			}
 		}
-		timeless, err := timelessVersions(r, schema, len(d.Stats), warn)
-		if err != nil {
+		var timeless []dataset.TimelessVersion
+		if timeless, text.TimelessNames, err = timelessVersions(r, schema, len(d.Stats), warn); err != nil {
 			return nil, err
 		}
 		overs := map[bool][]dataset.NodeOverride{}
