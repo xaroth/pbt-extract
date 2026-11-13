@@ -18,7 +18,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + overrideTablesJSON + jewelTablesJSON + `
+const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + overrideTablesJSON + jewelTablesJSON + timelessTablesJSON + `
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Characters", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
@@ -184,6 +184,7 @@ func game(t *testing.T) fstest.MapFS {
 	buffGame(t, g)
 	overrideGame(t, g)
 	jewelGame(t, g)
+	timelessGame(t, g)
 	maps.Copy(g, skillFiles(t, skillRows()))
 	maps.Copy(g, monsterFiles(t, monsterRows()))
 	return g

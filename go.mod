@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/google/go-cmp v0.7.0
-	github.com/xaroth/pbt-engine v0.0.0-20261113212119-f8185808095d
+	github.com/xaroth/pbt-engine v0.0.0-20261113212458-9d7700a722f7
 	golang.org/x/image v0.41.0
 )
 
