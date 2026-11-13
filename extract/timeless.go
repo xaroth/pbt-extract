@@ -26,6 +26,7 @@ type timelessVersionRow struct {
 type timelessReplacementRow struct {
 	ID        string    `dat:"Id"`
 	Version   dat.Ref   `dat:"AlternateTreeVersionsKey" ref:"AlternateTreeVersions"`
+	Name      string    `dat:"Name"`
 	Kinds     []uint32  `dat:"PassiveType"`
 	Stats     []dat.Ref `dat:"StatsKeys" ref:"Stats"`
 	Stat1Min  int32     `dat:"Stat1Min"`
@@ -55,12 +56,14 @@ type timelessAdditionRow struct {
 const abyssPrefix = "Abyss"
 
 // timelessVersions reads the alternate tree versions with their replacement and addition rows,
-// up to the first Abyss version. A jewel's mod names its version by game row, so a version after
-// an Abyss one cannot keep its row as its index; it is left out with its rows and a warning.
-func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.TimelessVersion, error) {
+// up to the first Abyss version, and the English names of the kept replacements in table order.
+// A jewel's mod names its version by game row, so a version after an Abyss one cannot keep its
+// row as its index; it is left out with its rows and a warning. A replacement without a name is
+// a warning.
+func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.TimelessVersion, []dataset.Name, error) {
 	versions, err := readRows[timelessVersionRow](r, s, "AlternateTreeVersions")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var out []dataset.TimelessVersion
 	var dropped []int // rows of versions after an Abyss one
@@ -84,23 +87,29 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 	}
 	replacements, err := readRows[timelessReplacementRow](r, s, "AlternatePassiveSkills")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var names []dataset.Name
 	for i, row := range replacements {
 		v, keep, err := keptVersion(row.Version, len(versions), len(out))
 		if err == nil && keep {
 			var rep dataset.TimelessReplacement
 			if rep, err = replacement(row, nStats); err == nil {
 				out[v].Replacements = append(out[v].Replacements, rep)
+				if row.Name == "" {
+					warn(fmt.Sprintf("timeless passive %s has no name", row.ID))
+				} else {
+					names = append(names, dataset.Name{ID: row.ID, Name: row.Name})
+				}
 			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("AlternatePassiveSkills row %d (%s): %w", i, row.ID, err)
+			return nil, nil, fmt.Errorf("AlternatePassiveSkills row %d (%s): %w", i, row.ID, err)
 		}
 	}
 	additions, err := readRows[timelessAdditionRow](r, s, "AlternatePassiveAdditions")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for i, row := range additions {
 		v, keep, err := keptVersion(row.Version, len(versions), len(out))
@@ -111,7 +120,7 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("AlternatePassiveAdditions row %d (%s): %w", i, row.ID, err)
+			return nil, nil, fmt.Errorf("AlternatePassiveAdditions row %d (%s): %w", i, row.ID, err)
 		}
 	}
 	for _, v := range dropped {
@@ -119,7 +128,7 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 			versions[v].ID, v, countVersion(replacements, v, func(r timelessReplacementRow) dat.Ref { return r.Version }),
 			countVersion(additions, v, func(r timelessAdditionRow) dat.Ref { return r.Version })))
 	}
-	return out, nil
+	return out, names, nil
 }
 
 // countVersion counts the rows whose version is row v.

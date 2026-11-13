@@ -35,7 +35,7 @@ Each tree of a dataset carries the game's tattoos and runegrafts from `PassiveSk
 
 Each tree carries the jewel radii of `PassiveJewelRadii` and what cluster jewels need: the sockets that take one, from `PassiveJewelSlots` (size, index, proxy node, the parent socket's node and start indices); how each size lays out its nodes, from `PassiveTreeExpansionJewels`, with its base item; the small passive kinds of `PassiveTreeExpansionSkills` with their tag; and the notables and keystones of `PassiveTreeExpansionSpecialSkills`, keyed by the stat of the jewel mod that adds them. Passives are named by node id: the tree export holds the passives a cluster jewel adds as nodes without neighbours. The build fails when the tree export's `expansionJewel` on a socket disagrees with `PassiveJewelSlots`.
 
-Each tree also carries the alternate tree versions timeless jewels use, from `AlternateTreeVersions`, each with its replacement passives (`AlternatePassiveSkills`) and added stats (`AlternatePassiveAdditions`) in table order, stats as ranges in row order. The Abyss versions, whose ids start with `Abyss`, are left out with their rows. A jewel's mod names its version by game row, so a version after an Abyss one, such as 3.30's `BlightJewel`, cannot keep its row as its index: it is left out with its rows and a warning. A row without a passive type, with an unknown one, or with a third stat, whose value columns are not known, fails the build. Row ids are kept as data only, since some do not match the row's stats.
+Each tree also carries the alternate tree versions timeless jewels use, from `AlternateTreeVersions`, each with its replacement passives (`AlternatePassiveSkills`) and added stats (`AlternatePassiveAdditions`) in table order, stats as ranges in row order. The Abyss versions, whose ids start with `Abyss`, are left out with their rows. A jewel's mod names its version by game row, so a version after an Abyss one, such as 3.30's `BlightJewel`, cannot keep its row as its index: it is left out with its rows and a warning. A row without a passive type, with an unknown one, or with a third stat, whose value columns are not known, fails the build. Row ids are kept as data only, since some do not match the row's stats. The English text carries each kept replacement's `Name`, keyed by its row id; a replacement without one is a warning.
 
 Stat descriptions are read from each `Metadata/StatDescriptions` file as `.txt`, or as `.csd` where the client has no `.txt` (3.30 on); a scope keeps the `.txt` name either way. A limit bound with a stray `#`, such as `1|99#`, reads as its number.
 
@@ -51,6 +51,12 @@ Which game version uses which depot manifest, dat-schema commit and tree export 
 go build ./...
 go test ./...
 golangci-lint run
+```
+
+`TestRealTimelessNames` builds the dataset of a 3.29 input directory named by `$PBT_INPUT_3_29`, with ooz from `$PBT_OOZ` or `PATH`, and skips without it:
+
+```sh
+PBT_INPUT_3_29=/path/to/in-3.29 go test -run RealTimelessNames .
 ```
 
 ## Licence

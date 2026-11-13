@@ -24,7 +24,7 @@ const timelessTablesJSON = `
 		{"name": "NotableReplacementChance", "type": "i32"}]},
 	{"name": "AlternatePassiveSkills", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "AlternateTreeVersionsKey", "type": "foreignrow"},
-		{"name": "PassiveType", "type": "enumrow", "array": true}, {"name": "StatsKeys", "type": "foreignrow", "array": true},
+		{"name": "Name", "type": "string"}, {"name": "PassiveType", "type": "enumrow", "array": true}, {"name": "StatsKeys", "type": "foreignrow", "array": true},
 		{"name": "Stat1Min", "type": "i32"}, {"name": "Stat1Max", "type": "i32"},
 		{"name": "Stat2Min", "type": "i32"}, {"name": "Stat2Max", "type": "i32"},
 		{"name": "SpawnWeight", "type": "i32"}, {"name": "ConquerorIndex", "type": "i32"},
@@ -51,9 +51,10 @@ func treeVersion(id string, replaced bool, n, chance int32) []any {
 	return []any{id, replaced, replaced, n, n, n, n, n, n, chance}
 }
 
-// altPassive is one AlternatePassiveSkills row with stat ranges [lo, hi] each.
+// altPassive is one AlternatePassiveSkills row with stat ranges [lo, hi] each, named "Name of
+// <id>".
 func altPassive(id string, version int, kinds []uint32, stats []int, lo, hi, weight, conqueror, conqVersion int32) []any {
-	return []any{id, version, kinds, stats, lo, hi, lo, hi, weight, conqueror, int32(0), int32(2), conqVersion}
+	return []any{id, version, "Name of " + id, kinds, stats, lo, hi, lo, hi, weight, conqueror, int32(0), int32(2), conqVersion}
 }
 
 // altAddition is one AlternatePassiveAdditions row with stat ranges [lo, hi] each.
@@ -79,7 +80,7 @@ func TestTimeless(t *testing.T) {
 		[][]any{
 			altPassive("vaal_keystone_2_v2", 1, []uint32{4}, []int{4}, 1, 1, 100, 2, 1),
 			// stats stay in row order
-			altPassive("vaal_small_life", 1, []uint32{1, 2}, []int{3, 1}, 5, 9, 50, 0, 0),
+			unnamed(altPassive("vaal_small_life", 1, []uint32{1, 2}, []int{3, 1}, 5, 9, 50, 0, 0)),
 			altPassive("abyss_notable", 2, []uint32{3}, []int{1}, 1, 1, 100, 0, 0),
 			altPassive("blight_notable", 3, []uint32{3}, []int{1}, 1, 1, 100, 0, 0),
 		},
@@ -94,7 +95,10 @@ func TestTimeless(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
 	}
-	wantWarnings := []string{"timeless version BlightJewel (row 3) follows an Abyss version; left out with its 1 replacements and 0 additions"}
+	wantWarnings := []string{
+		"timeless passive vaal_small_life has no name",
+		"timeless version BlightJewel (row 3) follows an Abyss version; left out with its 1 replacements and 0 additions",
+	}
 	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
 		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
 	}
@@ -119,6 +123,16 @@ func TestTimeless(t *testing.T) {
 			t.Errorf("tree %s timeless versions mismatch (-want +got):\n%s", tree.Variant, diff)
 		}
 	}
+	wantNames := []dataset.Name{{ID: "vaal_keystone_2_v2", Name: "Name of vaal_keystone_2_v2"}}
+	if diff := cmp.Diff(wantNames, got.Texts[0].TimelessNames); diff != "" {
+		t.Errorf("timeless names mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// unnamed clears the name of an altPassive row.
+func unnamed(row []any) []any {
+	row[2] = ""
+	return row
 }
 
 func TestTimelessErrors(t *testing.T) {
