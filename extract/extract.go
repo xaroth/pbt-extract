@@ -133,12 +133,31 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 			return nil, err
 		}
 		tt.warn = in.Warn
+		ovt, err := readOverrideTables(r, schema)
+		if err != nil {
+			return nil, err
+		}
+		// Variants of one stat mode share their overrides, so each warning is given once.
+		warned := map[string]bool{}
+		warn := func(msg string) {
+			if in.Warn != nil && !warned[msg] {
+				warned[msg] = true
+				in.Warn(msg)
+			}
+		}
+		overs := map[bool][]dataset.NodeOverride{}
 		nodeNames := map[uint32]string{}
 		for _, v := range in.Trees {
 			t, err := tt.build(v, classes)
 			if err != nil {
 				return nil, err
 			}
+			if _, ok := overs[v.Hardmode]; !ok {
+				if overs[v.Hardmode], text.OverrideNames, err = ovt.build(v.Hardmode, len(d.Stats), warn); err != nil {
+					return nil, err
+				}
+			}
+			t.Overrides = overridesIn(t, overs[v.Hardmode])
 			d.Trees = append(d.Trees, t)
 			l, err := layout(v)
 			if err != nil {
