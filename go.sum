@@ -4,3 +4,5 @@ github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/xaroth/pbt-engine v0.0.0-20261113103950-a73b020681b5 h1:SZk7d+Fq+NFPtR6fcY1+4PujVzyWKkp4aR5uqHB+VIc=
 github.com/xaroth/pbt-engine v0.0.0-20261113103950-a73b020681b5/go.mod h1:kCpvhBR+vGqsXUoMGDMl/oDsrzpZ+c8cWJ870ZHApmA=
+github.com/xaroth/pbt-engine v0.0.0-20261113120204-a185f8107398 h1:mqTmrvFo/w8fH2BNnxQS3IFax+mtlRhiT20R7dGHIO8=
+github.com/xaroth/pbt-engine v0.0.0-20261113120204-a185f8107398/go.mod h1:kCpvhBR+vGqsXUoMGDMl/oDsrzpZ+c8cWJ870ZHApmA=

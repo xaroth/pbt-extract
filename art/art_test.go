@@ -1,7 +1,6 @@
 package art_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,14 +73,14 @@ func TestBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := art.Manifest{
+	want := dataset.ArtManifest{
 		Files: []dataset.File{
 			{Name: "skills-0.jpg", Size: 12, SHA256: "4be8d51a40418e58d2e29865e2c9912681d37285e50e5d48ab92a9109303c1a2"},
 			{Name: "skills-1.jpg", Size: 12, SHA256: "fb8588ee534a591eea7659edee4974c4ad87b22f3fafb773ba78924fd07c3879"},
 		},
-		Sprites: map[string][]art.Sheet{"normalActive": {
-			{Zoom: 0.1, File: "skills-0.jpg", Width: 8, Height: 8, Coords: map[string]treeexport.Rect{"a.png": {W: 1, H: 1}}},
-			{Zoom: 0.5, File: "skills-1.jpg", Width: 8, Height: 8, Coords: map[string]treeexport.Rect{"a.png": {W: 1, H: 1}}},
+		Sprites: map[string][]dataset.SpriteSheet{"normalActive": {
+			{Zoom: 0.1, File: "skills-0.jpg", Width: 8, Height: 8, Coords: map[string]dataset.SheetRect{"a.png": {W: 1, H: 1}}},
+			{Zoom: 0.5, File: "skills-1.jpg", Width: 8, Height: 8, Coords: map[string]dataset.SheetRect{"a.png": {W: 1, H: 1}}},
 		}},
 	}
 	if diff := cmp.Diff(want, a.Manifest); diff != "" {
@@ -96,8 +95,8 @@ func TestBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got art.Manifest
-	if err := json.Unmarshal(b, &got); err != nil {
+	got, err := dataset.ParseArtManifest(b)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
