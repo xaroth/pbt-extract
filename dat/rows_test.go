@@ -109,6 +109,23 @@ func TestRowsMissingColumns(t *testing.T) {
 	if want := "column Int not in the file, whose rows hold the first 2 columns"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("got error %v, want one containing %q", err, want)
 	}
+	type optionalRow struct {
+		ID  string `dat:"Id"`
+		Int int32  `dat:"Int,optional"`
+	}
+	opt, err := dat.Rows[optionalRow](s, "T", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]optionalRow{{ID: "first"}}, opt); diff != "" {
+		t.Errorf("optional column (-want +got)\n%s", diff)
+	}
+	_, err = dat.Rows[struct {
+		Int int32 `dat:"Int,later"`
+	}](s, "T", b)
+	if want := `unknown dat tag option "later"`; err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("got error %v, want one containing %q", err, want)
+	}
 }
 
 func TestRef(t *testing.T) {

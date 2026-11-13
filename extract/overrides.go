@@ -22,7 +22,8 @@ type overrideRow struct {
 	MinAdjacent int32     `dat:"RequiresAdjacent"`
 	MaxAdjacent int32     `dat:"MaxAdjacent"`
 	Passive     dat.Ref   `dat:"AllocatedPassiveSkill" ref:"PassiveSkills"`
-	Blocking    []dat.Ref `dat:"TattooBlockingPassive" ref:"PassiveSkills"`
+	// 3.27's game files lack TattooBlockingPassive.
+	Blocking []dat.Ref `dat:"TattooBlockingPassive,optional" ref:"PassiveSkills"`
 }
 
 type tattooRow struct {
