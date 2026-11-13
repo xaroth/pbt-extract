@@ -14,7 +14,8 @@ import (
 )
 
 // DescriptionsRoot is the stat description file of the passive tree, whose include chain datasets
-// carry. It includes passive_skill_stat_descriptions.txt, which includes stat_descriptions.txt.
+// carry. It includes passive_skill_stat_descriptions.txt, which includes stat_descriptions.txt. From
+// 3.30 the game files are .csd; the scope names stay .txt.
 const DescriptionsRoot = "Metadata/StatDescriptions/passive_skill_aura_stat_descriptions.txt"
 
 // Input is what a dataset is built from.
