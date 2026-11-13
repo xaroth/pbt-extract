@@ -4,7 +4,7 @@ github.com/google/flatbuffers v25.12.19+incompatible h1:haMV2JRRJCe1998HeW/p0X9U
 github.com/google/flatbuffers v25.12.19+incompatible/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv5+zNeJKJCa8=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
-github.com/xaroth/pbt-engine v0.0.0-20261113223451-bf99c169a227 h1:NuqJ40inaUumX6y4aVObQCGYRnQ3ZtUO7LcVeTSqqy4=
-github.com/xaroth/pbt-engine v0.0.0-20261113223451-bf99c169a227/go.mod h1:kCpvhBR+vGqsXUoMGDMl/oDsrzpZ+c8cWJ870ZHApmA=
+github.com/xaroth/pbt-engine v0.0.0-20261113224522-f4ccaed71df3 h1:bxcC3n6UQZHCeYwXZ/m+wUtK/h3gHGl+ht7pWTRTlWs=
+github.com/xaroth/pbt-engine v0.0.0-20261113224522-f4ccaed71df3/go.mod h1:kCpvhBR+vGqsXUoMGDMl/oDsrzpZ+c8cWJ870ZHApmA=
 golang.org/x/image v0.41.0 h1:8wS72eGJMJaBxK6okTzd4WaXumUlTVlb753MlsSvTCo=
 golang.org/x/image v0.41.0/go.mod h1:uIc348UZMSvS5Z65CVZ7iDPaNobNFEPeJ4kbqTOszmA=
