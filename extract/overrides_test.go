@@ -1,6 +1,7 @@
 package extract_test
 
 import (
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -118,9 +119,12 @@ func TestOverrides(t *testing.T) {
 		{ID: "Tasalio3", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 4, Value: 5}}, Icon: "Art/curse.png", Target: dataset.SmallIntelligence, ExcludedNodes: []uint32{2}},
 		{ID: "runegraft_1", Kind: dataset.Runegraft, Stats: []dataset.StatValue{{Stat: 1, Value: 2}, {Stat: 2, Value: 3}}, Icon: "Art/warp.png", Target: dataset.MasteryTarget, MinNeighbours: 2, MaxNeighbours: 4},
 	}
-	for _, tree := range got.Trees {
-		if diff := cmp.Diff(want, tree.Overrides, cmpopts.EquateEmpty()); diff != "" {
-			t.Errorf("tree %s overrides mismatch (-want +got):\n%s", tree.Variant, diff)
+	// Might has a ruthless alternate without buffs; Acrobatics has none.
+	ruthless := slices.Clone(want)
+	ruthless[1].Stats = []dataset.StatValue{{Stat: 3, Value: 20}}
+	for i, w := range [][]dataset.NodeOverride{want, ruthless} {
+		if diff := cmp.Diff(w, got.Trees[i].Overrides, cmpopts.EquateEmpty()); diff != "" {
+			t.Errorf("tree %s overrides mismatch (-want +got):\n%s", got.Trees[i].Variant, diff)
 		}
 	}
 	wantNames := []dataset.Name{

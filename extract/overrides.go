@@ -44,6 +44,24 @@ type overridePassiveRow struct {
 	Value4  int32     `dat:"Stat4Value"`
 	Value5  int32     `dat:"Stat5Value"`
 	Buffs   []dat.Ref `dat:"PassiveSkillBuffs" ref:"BuffTemplates"`
+
+	HasHardmode bool      `dat:"HasHardmodeAlternate"`
+	StatsHard   []dat.Ref `dat:"StatsHardmode" ref:"Stats"`
+	Value1Hard  int32     `dat:"Stat1ValueHardmode"`
+	Value2Hard  int32     `dat:"Stat2ValueHardmode"`
+	Value3Hard  int32     `dat:"Stat3ValueHardmode"`
+	Value4Hard  int32     `dat:"Stat4ValueHardmode"`
+	Value5Hard  int32     `dat:"Stat5ValueHardmode"`
+	BuffsHard   []dat.Ref `dat:"BuffsHardmode" ref:"BuffTemplates"`
+}
+
+// stats returns the passive's stat references, values and buffs, the ruthless ones for
+// hardmode when it has them.
+func (p overridePassiveRow) stats(hardmode bool) ([]dat.Ref, []int32, []dat.Ref) {
+	if hardmode && p.HasHardmode {
+		return p.StatsHard, []int32{p.Value1Hard, p.Value2Hard, p.Value3Hard, p.Value4Hard, p.Value5Hard}, p.BuffsHard
+	}
+	return p.Stats, []int32{p.Value1, p.Value2, p.Value3, p.Value4, p.Value5}, p.Buffs
 }
 
 // overrideTargets maps PassiveSkillTattooTargetSets ids to override targets.
@@ -88,8 +106,9 @@ func readOverrideTables(r ot.Reader, s *dat.Schema) (overrideTables, error) {
 	return t, err
 }
 
-// overrides reads every tattoo and runegraft of PassiveSkillOverrides, sorted by id, with
-// their English names. ExcludedNodes may name nodes a tree lacks; overridesIn drops those.
+// build returns every tattoo and runegraft of PassiveSkillOverrides, sorted by id, with
+// their English names, for a tree of the standard or, with hardmode, the ruthless stat
+// columns. ExcludedNodes may name nodes a tree lacks; overridesIn drops those.
 //
 // A tattoo that grants a random override of a type (a keystone or ascendancy tattoo) gives
 // its target to every override of that type, and its own placeholder override is left out.
@@ -97,11 +116,7 @@ func readOverrideTables(r ot.Reader, s *dat.Schema) (overrideTables, error) {
 // AllocatedPassiveSkill. One that cannot be placed or shown (no target, no icon, a stat that
 // does not resolve) or that the game marks unused is left out with a warning; a missing name
 // or passive buffs, which the dataset cannot hold, are a warning only.
-func overrides(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.NodeOverride, []dataset.Name, error) {
-	t, err := readOverrideTables(r, s)
-	if err != nil {
-		return nil, nil, err
-	}
+func (t overrideTables) build(hardmode bool, nStats int, warn func(string)) ([]dataset.NodeOverride, []dataset.Name, error) {
 	byOverride, byType, placeholders, err := t.targets()
 	if err != nil {
 		return nil, nil, err
@@ -112,7 +127,7 @@ func overrides(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dat
 		if placeholders[i] {
 			continue
 		}
-		o, name, problem, err := t.override(row, nStats, warn)
+		o, name, problem, err := t.override(row, hardmode, nStats, warn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("PassiveSkillOverrides %s: %w", row.ID, err)
 		}
@@ -186,7 +201,7 @@ func (t overrideTables) targets() (byOverride, byType map[int]dataset.OverrideTa
 
 // override builds one override without its target, and returns its English name. problem
 // says why it cannot be used; err is a broken reference.
-func (t overrideTables) override(row overrideRow, nStats int, warn func(string)) (o dataset.NodeOverride, name, problem string, err error) {
+func (t overrideTables) override(row overrideRow, hardmode bool, nStats int, warn func(string)) (o dataset.NodeOverride, name, problem string, err error) {
 	typ, err := lookup(row.Type, t.types, "PassiveSkillOverrideTypes")
 	if err != nil {
 		return o, "", "", err
@@ -206,12 +221,12 @@ func (t overrideTables) override(row overrideRow, nStats int, warn func(string))
 			return o, "", "", err
 		}
 		name, icon = cmp.Or(name, p.Name), cmp.Or(icon, p.Icon)
-		pv := []int32{p.Value1, p.Value2, p.Value3, p.Value4, p.Value5}
-		if len(p.Stats) > len(pv) {
-			return o, name, fmt.Sprintf("passive %s has %d stats", p.Name, len(p.Stats)), nil
+		ps, pv, buffs := p.stats(hardmode)
+		if len(ps) > len(pv) {
+			return o, name, fmt.Sprintf("passive %s has %d stats", p.Name, len(ps)), nil
 		}
-		refs, values = append(slices.Clone(refs), p.Stats...), append(slices.Clone(values), pv[:len(p.Stats)]...)
-		if len(p.Buffs) > 0 {
+		refs, values = append(slices.Clone(refs), ps...), append(slices.Clone(values), pv[:len(ps)]...)
+		if len(buffs) > 0 {
 			warn(fmt.Sprintf("override %s: the buffs of passive %s are not carried", row.ID, p.Name))
 		}
 	}
