@@ -143,6 +143,18 @@ type Node struct {
 	InactiveIcon      string `json:"inactiveIcon"`
 	ActiveIcon        string `json:"activeIcon"`
 	ActiveEffectImage string `json:"activeEffectImage"`
+	// ExpansionJewel is set on a jewel socket that takes a cluster jewel.
+	ExpansionJewel *ExpansionJewel `json:"expansionJewel"`
+}
+
+// ExpansionJewel is what a socket that takes a cluster jewel says of it: the size it takes,
+// which of its parent's sockets it is, its proxy node and its parent socket, "" for the tree's
+// own sockets.
+type ExpansionJewel struct {
+	Size   int    `json:"size"`
+	Index  int    `json:"index"`
+	Proxy  string `json:"proxy"`
+	Parent string `json:"parent"`
 }
 
 // MasteryEffect is one selectable mastery effect.

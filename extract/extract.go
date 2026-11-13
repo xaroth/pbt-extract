@@ -143,6 +143,10 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
+		radii, clusters, err := jewels(r, schema, len(d.Stats))
+		if err != nil {
+			return nil, err
+		}
 		// Variants of one stat mode share their overrides, so each warning is given once.
 		warned := map[string]bool{}
 		warn := func(msg string) {
@@ -164,6 +168,10 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 				}
 			}
 			t.Overrides = overridesIn(t, overs[v.Hardmode])
+			if err := checkClusterSockets(clusters.Sockets, v.Export); err != nil {
+				return nil, fmt.Errorf("tree %s: %w", v.Name, err)
+			}
+			t.JewelRadii, t.Clusters = radii, clusters
 			d.Trees = append(d.Trees, t)
 			l, err := layout(v)
 			if err != nil {
