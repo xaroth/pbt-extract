@@ -314,7 +314,7 @@ func TestDatasetProxyWithoutRow(t *testing.T) {
 		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
 	}
 	nodes := got.Trees[0].Nodes
-	wantNode := dataset.Node{ID: 9, Kind: dataset.Notable, Neighbours: []uint32{2}}
+	wantNode := dataset.Node{ID: 9, Kind: dataset.Proxy, Neighbours: []uint32{2}}
 	if diff := cmp.Diff(wantNode, nodes[len(nodes)-1], cmpopts.EquateEmpty()); diff != "" {
 		t.Errorf("proxy node mismatch (-want +got):\n%s", diff)
 	}

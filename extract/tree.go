@@ -256,6 +256,9 @@ func (tt *treeTables) masteryCount(row int, stats []dataset.StatValue) ([]datase
 
 func kind(n treeexport.Node) dataset.NodeKind {
 	switch {
+	// A proxy is never allocated, whatever else the export marks it as.
+	case n.IsProxy:
+		return dataset.Proxy
 	case n.ClassStartIndex != nil:
 		return dataset.ClassStart
 	case n.IsAscendancyStart:
@@ -268,8 +271,6 @@ func kind(n treeexport.Node) dataset.NodeKind {
 		return dataset.Keystone
 	case n.IsNotable:
 		return dataset.Notable
-	case n.IsProxy:
-		return dataset.Proxy
 	}
 	return dataset.Normal
 }
