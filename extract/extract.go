@@ -29,6 +29,8 @@ type Input struct {
 	// Values are the columns whose values the game files number otherwise than the schema's
 	// enumeration. Only GemEffects.ItemColor is read through a map.
 	Values []ColumnValues
+	// Warn receives problems the build works around. Nil drops them.
+	Warn func(msg string)
 }
 
 // ColumnValues gives the schema's value for each value the game files hold in Table.Column.
@@ -130,6 +132,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
+		tt.warn = in.Warn
 		nodeNames := map[uint32]string{}
 		for _, v := range in.Trees {
 			t, err := tt.build(v, classes)
