@@ -1,12 +1,10 @@
 package art_test
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -94,8 +92,8 @@ func TestClassFaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		"Metadata/Characters/Str/Str":       "class-str.png",
-		"Metadata/Characters/DexInt/DexInt": "class-dexint.png",
+		"Metadata/Characters/Str/Str":       "class-str.webp",
+		"Metadata/Characters/DexInt/DexInt": "class-dexint.webp",
 	}
 	if diff := cmp.Diff(want, a.Manifest.ClassFaces); diff != "" {
 		t.Errorf("ClassFaces mismatch (-want +got):\n%s", diff)
@@ -103,27 +101,23 @@ func TestClassFaces(t *testing.T) {
 	if a.Manifest.AscendancyFaces != nil {
 		t.Errorf("AscendancyFaces = %v, want none", a.Manifest.AscendancyFaces)
 	}
-	if len(a.Manifest.Files) != 2 || a.Manifest.Files[0].Name != "class-dexint.png" {
-		t.Errorf("Files = %v, want class-dexint.png and class-str.png", a.Manifest.Files)
+	if len(a.Manifest.Files) != 2 || a.Manifest.Files[0].Name != "class-dexint.webp" {
+		t.Errorf("Files = %v, want class-dexint.webp and class-str.webp", a.Manifest.Files)
 	}
-	for file, c := range map[string]color.NRGBA{"class-str.png": blue, "class-dexint.png": red} {
+	for file, c := range map[string]color.NRGBA{"class-str.webp": blue, "class-dexint.webp": red} {
 		checkFace(t, a, file, image.Rect(0, 0, 4, 4), c)
 	}
 }
 
 func checkFace(t *testing.T, a *art.Art, file string, bounds image.Rectangle, c color.NRGBA) {
 	t.Helper()
-	img, err := png.Decode(bytes.NewReader(a.Files[file]))
-	if err != nil {
-		t.Errorf("%s: %v", file, err)
-		return
+	want := image.NewNRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			want.SetNRGBA(x, y, c)
+		}
 	}
-	if got := img.Bounds(); got != bounds {
-		t.Errorf("%s: bounds %v, want %v", file, got, bounds)
-	}
-	if got := color.NRGBAModel.Convert(img.At(bounds.Max.X-1, bounds.Max.Y-1)); got != c {
-		t.Errorf("%s: corner = %v, want %v", file, got, c)
-	}
+	checkWebP(t, file, a.Files[file], want)
 }
 
 func TestClassFacesErrors(t *testing.T) {
@@ -229,13 +223,13 @@ func TestAscendancyFaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{
-		"Ascendant": "ascendancy-ascendant.png", "Reliquarian": "ascendancy-reliquarian.png", "Luminary": "ascendancy-luminary.png",
-		"Juggernaut": "ascendancy-juggernaut.png", "Berserker": "ascendancy-berserker.png", "Chieftain": "ascendancy-chieftain.png",
-		"Raider": "ascendancy-raider.png", "Deadeye": "ascendancy-deadeye.png", "Pathfinder": "ascendancy-pathfinder.png",
-		"Occultist": "ascendancy-occultist.png", "Elementalist": "ascendancy-elementalist.png", "Necromancer": "ascendancy-necromancer.png",
-		"Slayer": "ascendancy-slayer.png", "Gladiator": "ascendancy-gladiator.png", "Champion": "ascendancy-champion.png",
-		"Inquisitor": "ascendancy-inquisitor.png", "Hierophant": "ascendancy-hierophant.png", "Guardian": "ascendancy-guardian.png",
-		"Assassin": "ascendancy-assassin.png", "Trickster": "ascendancy-trickster.png", "Saboteur": "ascendancy-saboteur.png",
+		"Ascendant": "ascendancy-ascendant.webp", "Reliquarian": "ascendancy-reliquarian.webp", "Luminary": "ascendancy-luminary.webp",
+		"Juggernaut": "ascendancy-juggernaut.webp", "Berserker": "ascendancy-berserker.webp", "Chieftain": "ascendancy-chieftain.webp",
+		"Raider": "ascendancy-raider.webp", "Deadeye": "ascendancy-deadeye.webp", "Pathfinder": "ascendancy-pathfinder.webp",
+		"Occultist": "ascendancy-occultist.webp", "Elementalist": "ascendancy-elementalist.webp", "Necromancer": "ascendancy-necromancer.webp",
+		"Slayer": "ascendancy-slayer.webp", "Gladiator": "ascendancy-gladiator.webp", "Champion": "ascendancy-champion.webp",
+		"Inquisitor": "ascendancy-inquisitor.webp", "Hierophant": "ascendancy-hierophant.webp", "Guardian": "ascendancy-guardian.webp",
+		"Assassin": "ascendancy-assassin.webp", "Trickster": "ascendancy-trickster.webp", "Saboteur": "ascendancy-saboteur.webp",
 	}
 	if diff := cmp.Diff(want, a.Manifest.AscendancyFaces); diff != "" {
 		t.Errorf("AscendancyFaces mismatch (-want +got):\n%s", diff)

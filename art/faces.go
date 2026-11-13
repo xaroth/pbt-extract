@@ -149,10 +149,10 @@ func readTexture(r ot.Reader, name string) (*image.NRGBA, error) {
 
 // classFaceFile is the file name of a character's face in the art directory.
 func classFaceFile(character string) string {
-	return "class-" + strings.ToLower(path.Base(character)) + ".png"
+	return "class-" + strings.ToLower(path.Base(character)) + ".webp"
 }
 
 // ascendancyFaceFile is the file name of an ascendancy's face in the art directory.
 func ascendancyFaceFile(id string) string {
-	return "ascendancy-" + strings.ToLower(id) + ".png"
+	return "ascendancy-" + strings.ToLower(id) + ".webp"
 }
