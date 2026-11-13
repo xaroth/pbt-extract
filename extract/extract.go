@@ -133,12 +133,21 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 			return nil, err
 		}
 		tt.warn = in.Warn
+		warn := in.Warn
+		if warn == nil {
+			warn = func(string) {}
+		}
+		var overs []dataset.NodeOverride
+		if overs, text.OverrideNames, err = overrides(r, schema, len(d.Stats), warn); err != nil {
+			return nil, err
+		}
 		nodeNames := map[uint32]string{}
 		for _, v := range in.Trees {
 			t, err := tt.build(v, classes)
 			if err != nil {
 				return nil, err
 			}
+			t.Overrides = overridesIn(t, overs)
 			d.Trees = append(d.Trees, t)
 			l, err := layout(v)
 			if err != nil {

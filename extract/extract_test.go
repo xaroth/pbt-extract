@@ -18,7 +18,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + `
+const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + overrideTablesJSON + `
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
 	{"name": "Characters", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
@@ -40,7 +40,8 @@ const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTable
 		{"name": "Stat5ValueHardmode", "type": "i32"},
 		{"name": "BuffsHardmode", "type": "foreignrow", "array": true},
 		{"name": "SkillPointsGrantedHardmode", "type": "i32"},
-		{"name": "MasteryGroup", "type": "foreignrow"}]},
+		{"name": "MasteryGroup", "type": "foreignrow"},
+		{"name": "Name", "type": "string"}, {"name": "Icon_DDSFile", "type": "string"}]},
 	{"name": "PassiveSkillMasteryGroups", "columns": [{"name": "MasteryCountStat", "type": "foreignrow"}]},
 	{"name": "PassiveSkillMasteryEffects", "columns": [
 		{"name": "HASH16", "type": "u16"},
@@ -105,7 +106,7 @@ func questReward(flag int, points int32, stats []int, vals []int32, quest int, a
 }
 
 // passive is one PassiveSkills row: graph id, stats and values, buffs, points, then the
-// hardmode flag, stats and values. Hardmode buffs and points are empty.
+// hardmode flag, stats and values. Hardmode buffs and points, name and icon are empty.
 func passive(id uint16, stats []int, vals [5]int32, buffs []int, points int32, hard bool, hStats []int, hVals [5]int32) []any {
 	row := []any{id, stats}
 	for _, v := range vals {
@@ -115,13 +116,13 @@ func passive(id uint16, stats []int, vals [5]int32, buffs []int, points int32, h
 	for _, v := range hVals {
 		row = append(row, v)
 	}
-	return append(row, []int(nil), int32(0), dattest.Null)
+	return append(row, []int(nil), int32(0), dattest.Null, "", "")
 }
 
 // masteryPassive is a PassiveSkills row of a mastery node in mastery group 0.
 func masteryPassive(id uint16) []any {
 	row := passive(id, nil, [5]int32{}, nil, 0, false, nil, [5]int32{})
-	row[len(row)-1] = 0
+	row[len(row)-3] = 0
 	return row
 }
 
@@ -170,6 +171,7 @@ func game(t *testing.T) fstest.MapFS {
 	}
 	itemGame(t, g)
 	buffGame(t, g)
+	overrideGame(t, g)
 	maps.Copy(g, skillFiles(t, skillRows()))
 	maps.Copy(g, monsterFiles(t, monsterRows()))
 	return g
