@@ -184,6 +184,7 @@ type modRow struct {
 	GenerationTags    []dat.Ref `dat:"GenerationWeight_TagsKeys" ref:"Tags"`
 	GenerationWeights []int32   `dat:"GenerationWeight_Values"`
 	GrantedSkills     []dat.Ref `dat:"GrantedEffectsPerLevelKeys" ref:"GrantedEffectsPerLevel"`
+	RuthlessGrants    []dat.Ref `dat:"GrantedEffectRuthless" ref:"GrantedEffectsPerLevel"`
 	Stat1             dat.Ref   `dat:"StatsKey1" ref:"Stats"`
 	Stat2             dat.Ref   `dat:"StatsKey2" ref:"Stats"`
 	Stat3             dat.Ref   `dat:"StatsKey3" ref:"Stats"`
@@ -657,6 +658,9 @@ func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []da
 		mod, err := itemMod(m, types, families, tags, nStats)
 		if err == nil {
 			mod.GrantedSkills, err = lookupAll(m.GrantedSkills, grants, "GrantedEffectsPerLevel")
+		}
+		if err == nil {
+			mod.RuthlessGrantedSkills, err = lookupAll(m.RuthlessGrants, grants, "GrantedEffectsPerLevel")
 		}
 		if err != nil {
 			return nil, nil, fmt.Errorf("table Mods row %d: %w", row, err)

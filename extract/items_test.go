@@ -120,7 +120,8 @@ const itemTables = `
 		{"name": "Stat7MinHardmode", "type": "i32"}, {"name": "Stat7MaxHardmode", "type": "i32"},
 		{"name": "Stat8MinHardmode", "type": "i32"}, {"name": "Stat8MaxHardmode", "type": "i32"},
 		{"name": "GameMode", "type": "enumrow"},
-		{"name": "GrantedEffectsPerLevelKeys", "type": "foreignrow", "array": true, "references": {"table": "GrantedEffectsPerLevel"}}]}`
+		{"name": "GrantedEffectsPerLevelKeys", "type": "foreignrow", "array": true, "references": {"table": "GrantedEffectsPerLevel"}},
+		{"name": "GrantedEffectRuthless", "type": "foreignrow", "array": true, "references": {"table": "GrantedEffectsPerLevel"}}]}`
 
 // modStat is one stat slot of a Mods row: a Stats row, its range and its Ruthless range.
 type modStat struct {
@@ -142,8 +143,8 @@ type modRow struct {
 	ruthless                 bool
 	stats                    []modStat
 	gameMode                 uint32
-	// grants are GrantedEffectsPerLevel rows.
-	grants []int
+	// grants and ruthlessGrants are GrantedEffectsPerLevel rows.
+	grants, ruthlessGrants []int
 }
 
 func (m modRow) row() []any {
@@ -164,7 +165,7 @@ func (m modRow) row() []any {
 	for _, s := range slots {
 		r = append(r, s.rMin, s.rMax)
 	}
-	return append(r, m.gameMode, m.grants)
+	return append(r, m.gameMode, m.grants, m.ruthlessGrants)
 }
 
 func encodeMods(t *testing.T, mods ...modRow) []byte {
@@ -265,7 +266,7 @@ func itemMods() []modRow {
 		{id: "AllResistancesImplicitArmour1", domain: 1, generation: 3, level: 1, typ: 1, ruthless: true, gameMode: 2,
 			tags: []int{tagBodyArmour}, genTags: []int{tagDefault}, gen: []int32{50},
 			stats: []modStat{{stat: 3, min: 8, max: 12, rMin: 4, rMax: 6}, {stat: dattest.Null}, {stat: 4, min: 1, max: 2, rMin: 1, rMax: 1}}},
-		{id: "FlaskInstantRecovery", name: "Bubbling", domain: 2, generation: 1, level: 1, typ: 0, grants: []int{1, 0}},
+		{id: "FlaskInstantRecovery", name: "Bubbling", domain: 2, generation: 1, level: 1, typ: 0, grants: []int{1, 0}, ruthlessGrants: []int{0}},
 	}
 }
 
@@ -360,7 +361,8 @@ func TestItems(t *testing.T) {
 			},
 			AddedTags: []string{"body_armour"}, GenerationWeights: []dataset.TagWeight{{Tag: "default", Weight: 50}}},
 		{ID: "FlaskInstantRecovery", Domain: 2, Generation: 1, Level: 1, Type: "IncreasedLife",
-			GrantedSkills: []dataset.GrantedSkill{{Effect: "Fireball", Level: 1}, {Effect: "Fireball", Level: 2}}},
+			GrantedSkills:         []dataset.GrantedSkill{{Effect: "Fireball", Level: 1}, {Effect: "Fireball", Level: 2}},
+			RuthlessGrantedSkills: []dataset.GrantedSkill{{Effect: "Fireball", Level: 2}}},
 	}
 	opt := cmpopts.EquateEmpty()
 	if diff := cmp.Diff(wantItems, got.Items, opt); diff != "" {
@@ -701,6 +703,8 @@ func TestItemsErrors(t *testing.T) {
 		{"generation tag out of range", setMods(func(m []modRow) { m[0].genTags, m[0].gen = []int{99}, []int32{1} }),
 			"generation weights: Tags row 99 out of range"},
 		{"granted skill out of range", setMods(func(m []modRow) { m[0].grants = []int{9} }), "Mods row 0: GrantedEffectsPerLevel row 9 out of range"},
+		{"Ruthless granted skill out of range", setMods(func(m []modRow) { m[0].ruthlessGrants = []int{9} }),
+			"Mods row 0: GrantedEffectsPerLevel row 9 out of range"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

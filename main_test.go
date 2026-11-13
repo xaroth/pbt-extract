@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -44,11 +45,10 @@ func TestEditionInput(t *testing.T) {
 	}
 }
 
-// TestRealTimelessNames builds the dataset of the 3.29 input directory $PBT_INPUT_3_29 and checks
-// that every timeless replacement passive of every tree has its English name. It skips without
-// $PBT_INPUT_3_29; ooz is $PBT_OOZ or ooz from PATH.
-func TestRealTimelessNames(t *testing.T) {
-	t.Parallel()
+// realDataset builds the dataset of the 3.29 input directory $PBT_INPUT_3_29; ooz is $PBT_OOZ or
+// ooz from PATH. It skips without $PBT_INPUT_3_29.
+func realDataset(t *testing.T) *dataset.Store {
+	t.Helper()
 	in := os.Getenv("PBT_INPUT_3_29")
 	if in == "" {
 		t.Skip("PBT_INPUT_3_29 not set")
@@ -61,6 +61,14 @@ func TestRealTimelessNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return s
+}
+
+// TestRealTimelessNames checks that every timeless replacement passive of every tree of the real
+// 3.29 dataset has its English name.
+func TestRealTimelessNames(t *testing.T) {
+	t.Parallel()
+	s := realDataset(t)
 	names, err := s.Names("en")
 	if err != nil {
 		t.Fatal(err)
@@ -92,5 +100,34 @@ func TestRealTimelessNames(t *testing.T) {
 		if byID[id] != name {
 			t.Errorf("name of %s: got %q, want %q", id, byID[id], name)
 		}
+	}
+}
+
+// TestRealRuthlessGrants checks the mods of the real 3.29 dataset that grant a skill of their own
+// in Ruthless: 15, of which 14 grant another skill than outside Ruthless, such as the HardMode
+// Grace of GraceSkillCorrupted.
+func TestRealRuthlessGrants(t *testing.T) {
+	t.Parallel()
+	mods, err := realDataset(t).Mods()
+	if err != nil {
+		t.Fatal(err)
+	}
+	filled, differ := 0, 0
+	for _, m := range mods {
+		if len(m.RuthlessGrantedSkills) == 0 {
+			continue
+		}
+		filled++
+		if !slices.Equal(m.GrantedSkills, m.RuthlessGrantedSkills) {
+			differ++
+		}
+		if m.ID == "GraceSkillCorrupted" {
+			if diff := cmp.Diff([]dataset.GrantedSkill{{Effect: "GraceHardMode", Level: 16}}, m.Grants(true)); diff != "" {
+				t.Errorf("GraceSkillCorrupted in Ruthless (-want +got):\n%s", diff)
+			}
+		}
+	}
+	if filled != 15 || differ != 14 {
+		t.Errorf("got %d mods with Ruthless grants, %d differing; want 15 and 14", filled, differ)
 	}
 }
