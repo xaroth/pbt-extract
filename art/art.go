@@ -1,14 +1,17 @@
-// Package art builds the passive tree's art from the tree export: its sprite sheets and a
-// manifest that places each icon on a sheet at each zoom level.
+// Package art builds the app's art: the passive tree's sprite sheets from the tree export, the
+// face of each base class from the game's UI art, and a manifest that places each tree icon on a
+// sheet at each zoom level and names each class's face.
 package art
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/png"
 	"io/fs"
 	"maps"
 	"net/url"
@@ -26,11 +29,13 @@ import (
 // ManifestName is the manifest's file name in the art directory.
 const ManifestName = "manifest.json"
 
-// Manifest lists the sheet files and, per sprite kind, where each icon is on them.
+// Manifest lists the art files, where each tree icon is on the sheets, and each class's face.
 type Manifest struct {
 	Files []dataset.File `json:"files"`
 	// Sprites holds per kind, such as "normalActive", one sheet per zoom level, by ascending zoom.
 	Sprites map[string][]Sheet `json:"sprites"`
+	// ClassFaces holds the file of each base class's face by character id.
+	ClassFaces map[string]string `json:"classFaces,omitempty"`
 }
 
 // Sheet places the icons of one kind at one zoom level on File.
@@ -74,10 +79,7 @@ func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees 
 		}
 		slices.SortFunc(a.Manifest.Sprites[kind], func(x, y Sheet) int { return cmp.Compare(x.Zoom, y.Zoom) })
 	}
-	for _, name := range slices.Sorted(maps.Keys(a.Files)) {
-		sum := sha256.Sum256(a.Files[name])
-		a.Manifest.Files = append(a.Manifest.Files, dataset.File{Name: name, Size: len(a.Files[name]), SHA256: hex.EncodeToString(sum[:])})
-	}
+	a.listFiles()
 	var errs []error
 	for _, t := range trees {
 		errs = append(errs, a.Manifest.checkTree(t))
@@ -86,6 +88,36 @@ func Build(sprites map[string]map[string]treeexport.Sprite, assets fs.FS, trees 
 		return nil, err
 	}
 	return a, nil
+}
+
+// AddClassFaces adds each face as a PNG file and names it in the manifest.
+func (a *Art) AddClassFaces(faces []ClassFace) error {
+	if a.Manifest.ClassFaces == nil {
+		a.Manifest.ClassFaces = make(map[string]string, len(faces))
+	}
+	for _, f := range faces {
+		name := faceFile(f.Character)
+		if _, dup := a.Files[name]; dup {
+			return fmt.Errorf("class face %s: file %s already in the art", f.Character, name)
+		}
+		var b bytes.Buffer
+		if err := png.Encode(&b, f.Image); err != nil {
+			return fmt.Errorf("class face %s: %w", f.Character, err)
+		}
+		a.Files[name] = b.Bytes()
+		a.Manifest.ClassFaces[f.Character] = name
+	}
+	a.listFiles()
+	return nil
+}
+
+// listFiles lists the files in the manifest by name.
+func (a *Art) listFiles() {
+	a.Manifest.Files = a.Manifest.Files[:0]
+	for _, name := range slices.Sorted(maps.Keys(a.Files)) {
+		sum := sha256.Sum256(a.Files[name])
+		a.Manifest.Files = append(a.Manifest.Files, dataset.File{Name: name, Size: len(a.Files[name]), SHA256: hex.EncodeToString(sum[:])})
+	}
 }
 
 // sheetName is the base name of a sheet URL, which is the file's name in the assets folder.

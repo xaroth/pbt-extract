@@ -1,7 +1,7 @@
 // Command pbt-extract builds pbt datasets from Path of Exile game files.
 //
 //	pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>
-//	pbt-extract art <in> <out>
+//	pbt-extract [-ooz path] art <in> <out>
 //	pbt-extract [-ooz path] bundles <in>
 //	pbt-extract [-ooz path] get <in> <path>
 //	pbt-extract [-ooz path] [-game poe1] table <in> <table>
@@ -9,9 +9,10 @@
 //
 // in is an input directory (see package input): schema.json, the tree export under tree/ and
 // the game's Bundles2. dataset writes the dataset of game version -version into the directory
-// out. art writes the tree's sprite sheets from the export's assets folder into out, with a
-// manifest placing each icon on them.
-// bundles lists the bundle files under in that a dataset build may read, one per line, from
+// out. art writes the tree's sprite sheets from the export's assets folder and the face of each
+// base class from the game's UI art into out, with a manifest placing each icon on the sheets and
+// naming each class's face.
+// bundles lists the bundle files under in that a dataset or art build may read, one per line, from
 // Bundles2/_.index.bin alone. get writes the game file at path (for example Data/Stats.datc64)
 // to stdout. table decodes Data/<table>.datc64 with schema.json, with the -game edition's names
 // for the table's unnamed columns, and writes one JSON object per row. stats writes the Stats block of an object template such as Metadata/Characters/Str/Str,
@@ -42,7 +43,7 @@ import (
 	"github.com/xaroth/pbt-extract/treeexport"
 )
 
-const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract art <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
+const usage = "usage: pbt-extract [-ooz path] [-game poe1] -version <v> dataset <in> <out>\n       pbt-extract [-ooz path] art <in> <out>\n       pbt-extract [-ooz path] bundles <in>\n       pbt-extract [-ooz path] get <in> <path>\n       pbt-extract [-ooz path] [-game poe1] table <in> <table>\n       pbt-extract [-ooz path] stats <in> <object>"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -112,7 +113,11 @@ func run(args []string) error {
 		}
 		return writeDataset(a, ed, *version, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "art" && len(cmd) == 3:
-		return writeArt(input.Dir(cmd[1]), cmd[2])
+		a, err := open()
+		if err != nil {
+			return err
+		}
+		return writeArt(a, input.Dir(cmd[1]), cmd[2])
 	case cmd[0] == "bundles" && len(cmd) == 2:
 		a, err := open()
 		if err != nil {
@@ -190,9 +195,9 @@ func readTrees(in input.Dir) ([]extract.Variant, error) {
 	return trees, nil
 }
 
-// writeArt writes the tree art into out: the sheets of the standard tree's sprites, which
-// every variant's icons must resolve on.
-func writeArt(in input.Dir, out string) error {
+// writeArt writes the art into out: the sheets of the standard tree's sprites, which every
+// variant's icons must resolve on, and the class faces.
+func writeArt(game *bundle.Archive, in input.Dir, out string) error {
 	trees, err := readTrees(in)
 	if err != nil {
 		return err
@@ -211,6 +216,17 @@ func writeArt(in input.Dir, out string) error {
 	}
 	a, err := art.Build(sprites, in.TreeAssets(), exports...)
 	if err != nil {
+		return err
+	}
+	schema, err := loadSchema(in, nil)
+	if err != nil {
+		return err
+	}
+	faces, err := art.ClassFaces(game, schema)
+	if err != nil {
+		return err
+	}
+	if err := a.AddClassFaces(faces); err != nil {
 		return err
 	}
 	return a.Write(out)
@@ -236,7 +252,7 @@ func editionInput(ed *edition.Edition, version string) (extract.Input, error) {
 	return bi, nil
 }
 
-// writeBundles lists the bundle files holding the game files a build may read.
+// writeBundles lists the bundle files holding the game files a dataset or art build may read.
 func writeBundles(a *bundle.Archive) error {
 	paths, err := a.Paths()
 	if err != nil {
@@ -244,7 +260,7 @@ func writeBundles(a *bundle.Archive) error {
 	}
 	var files []string
 	for _, p := range paths {
-		if !extract.Reads(p) {
+		if !extract.Reads(p) && !art.Reads(p) {
 			continue
 		}
 		f, ok := a.BundleFile(p)
