@@ -43,6 +43,228 @@
       "name": "LeagueReward",
       "note": "Set on league mechanic rows (Delve, Heist, Descent), which are not campaign rewards.",
       "source": "Our reading of the QuestStaticRewards rows of 3.28.0.16 and 3.29.3.3"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 0,
+      "name": "SmallAttributeReplaced",
+      "note": "A small attribute passive (+Strength, +Dexterity or +Intelligence alone) is replaced, not added to.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 1,
+      "name": "SmallNormalReplaced",
+      "note": "Another small passive is replaced, not added to.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 2,
+      "name": "SmallAttributeAdditionsMin",
+      "note": "Fewest additions to a small attribute passive.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 3,
+      "name": "SmallAttributeAdditionsMax",
+      "note": "Most additions to a small attribute passive.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 4,
+      "name": "SmallNormalAdditionsMin",
+      "note": "Fewest additions to another small passive.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 5,
+      "name": "SmallNormalAdditionsMax",
+      "note": "Most additions to another small passive.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 6,
+      "name": "NotableAdditionsMin",
+      "note": "Fewest additions to a notable.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 7,
+      "name": "NotableAdditionsMax",
+      "note": "Most additions to a notable.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gap": [
+        "bool",
+        "bool",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 8,
+      "name": "NotableReplacementChance",
+      "note": "Chance in percent that a notable is replaced rather than added to.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternatePassiveSkills",
+      "after": "SpawnWeight",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "ConquerorIndex",
+      "note": "On keystone rows, the conqueror (1 to 3) whose keystone this is; 0 on other rows.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists. Keystones were not compared: the jewel picks the conqueror's keystone without a draw"
+    },
+    {
+      "table": "AlternatePassiveSkills",
+      "after": "AchievementItemsKeys",
+      "gap": [
+        "i32",
+        "i32"
+      ],
+      "position": 0,
+      "name": "ConquerorVersion",
+      "note": "On keystone rows, which of the conqueror's keystones this is (0 or 1, such as Immortal Ambition beside Eternal Youth).",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists. Keystones were not compared: the jewel picks the conqueror's keystone without a draw"
+    },
+    {
+      "table": "AlternatePassiveAdditions",
+      "after": "Stat1Max",
+      "gap": [
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 0,
+      "name": "Stat2Min",
+      "note": "Value range of the second stat, as Stat1Min and Stat1Max of the first.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternatePassiveAdditions",
+      "after": "Stat1Max",
+      "gap": [
+        "i32",
+        "i32",
+        "i32",
+        "i32"
+      ],
+      "position": 1,
+      "name": "Stat2Max",
+      "note": "Value range of the second stat, as Stat1Min and Stat1Max of the first.",
+      "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
     }
   ]
 }

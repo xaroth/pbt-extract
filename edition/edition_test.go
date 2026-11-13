@@ -2,6 +2,7 @@ package edition_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -54,6 +55,8 @@ func TestNameColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The quest columns alone, so the test schema needs no other table.
+	names := slices.DeleteFunc(e.ColumnNames(), func(c dat.ColumnName) bool { return c.Table != "QuestStaticRewards" })
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -61,7 +64,7 @@ func TestNameColumns(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = s.NameColumns(e.ColumnNames())
+			err = s.NameColumns(names)
 			if (err != nil) != testCase.wantErr {
 				t.Fatalf("NameColumns: got error %v, want error %v", err, testCase.wantErr)
 			}
