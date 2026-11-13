@@ -55,20 +55,22 @@ type timelessAdditionRow struct {
 const abyssPrefix = "Abyss"
 
 // timelessVersions reads the alternate tree versions with their replacement and addition rows,
-// without the Abyss versions. A jewel's mod names its version by game row, so the versions kept
-// must come before every Abyss version; otherwise the build fails.
-func timelessVersions(r ot.Reader, s *dat.Schema, nStats int) ([]dataset.TimelessVersion, error) {
+// up to the first Abyss version. A jewel's mod names its version by game row, so a version after
+// an Abyss one cannot keep its row as its index; it is left out with its rows and a warning.
+func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.TimelessVersion, error) {
 	versions, err := readRows[timelessVersionRow](r, s, "AlternateTreeVersions")
 	if err != nil {
 		return nil, err
 	}
 	var out []dataset.TimelessVersion
+	var dropped []int // rows of versions after an Abyss one
 	for i, v := range versions {
 		if strings.HasPrefix(v.ID, abyssPrefix) {
 			continue
 		}
 		if len(out) != i {
-			return nil, fmt.Errorf("AlternateTreeVersions: version %s at row %d follows an Abyss version; kept versions must come first so their index is their row", v.ID, i)
+			dropped = append(dropped, i)
+			continue
 		}
 		out = append(out, dataset.TimelessVersion{
 			ID:                       v.ID,
@@ -112,7 +114,23 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int) ([]dataset.Timeles
 			return nil, fmt.Errorf("AlternatePassiveAdditions row %d (%s): %w", i, row.ID, err)
 		}
 	}
+	for _, v := range dropped {
+		warn(fmt.Sprintf("timeless version %s (row %d) follows an Abyss version; left out with its %d replacements and %d additions",
+			versions[v].ID, v, countVersion(replacements, v, func(r timelessReplacementRow) dat.Ref { return r.Version }),
+			countVersion(additions, v, func(r timelessAdditionRow) dat.Ref { return r.Version })))
+	}
 	return out, nil
+}
+
+// countVersion counts the rows whose version is row v.
+func countVersion[T any](rows []T, v int, version func(T) dat.Ref) int {
+	n := 0
+	for _, r := range rows {
+		if row, ok := version(r).Row(); ok && row == v {
+			n++
+		}
+	}
+	return n
 }
 
 // keptVersion returns the version row ref references and whether it is one of the kept first
