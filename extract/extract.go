@@ -265,7 +265,7 @@ func readTable(r ot.Reader, schema *dat.Schema, name string, cols ...string) (ta
 		}
 		t.cols[c] = i
 	}
-	b, err := r.ReadFile("Data/" + name + ".datc64")
+	b, err := readTableFile(r, name)
 	if err != nil {
 		return table{}, err
 	}

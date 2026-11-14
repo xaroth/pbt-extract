@@ -17,7 +17,7 @@ type idRow struct {
 
 // readRows decodes Data/<name>.datc64 into rows of T with dat.Rows.
 func readRows[T any](r ot.Reader, s *dat.Schema, name string) ([]T, error) {
-	b, err := r.ReadFile("Data/" + name + ".datc64")
+	b, err := readTableFile(r, name)
 	if err != nil {
 		return nil, err
 	}
