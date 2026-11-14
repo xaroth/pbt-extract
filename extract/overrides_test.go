@@ -97,6 +97,8 @@ func TestOverrides(t *testing.T) {
 		override("Bad2", "Tattoo of Nowhere", "Art/x.dds", []int{1}, []int32{1}, tasalioType, 0, 0, null, nil),
 		override("Bad3", "Tattoo of Nothing", "", []int{1}, []int32{1}, tasalioType, 0, 0, null, nil),
 		override("Nameless", "", "Art/x.dds", []int{1}, []int32{1}, tasalioType, 0, 0, null, nil),
+		// as in 3.27, repeats Might's stats as its own
+		override("KeystoneMightOwnStats", "", "", []int{1, 3}, []int32{5, 10}, keystoneType, 0, 0, 1, nil),
 	}, [][]any{
 		{0, smallIntSet, null},
 		{1, keystoneSet, keystoneType},
@@ -116,6 +118,7 @@ func TestOverrides(t *testing.T) {
 	want := []dataset.NodeOverride{
 		{ID: "KeystoneAcrobatics", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 2, Value: 7}}, Icon: "Art/acrobatics.png", Target: dataset.KeystoneTarget},
 		{ID: "KeystoneMight", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 1, Value: 5}, {Stat: 3, Value: 10}}, Icon: "Art/might.png", Target: dataset.KeystoneTarget},
+		{ID: "KeystoneMightOwnStats", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 1, Value: 5}, {Stat: 3, Value: 10}}, Icon: "Art/might.png", Target: dataset.KeystoneTarget},
 		{ID: "Nameless", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 1, Value: 1}}, Icon: "Art/x.png", Target: dataset.SmallIntelligence},
 		{ID: "Tasalio3", Kind: dataset.Tattoo, Stats: []dataset.StatValue{{Stat: 4, Value: 5}}, Icon: "Art/curse.png", Target: dataset.SmallIntelligence, ExcludedNodes: []uint32{2}},
 		{ID: "runegraft_1", Kind: dataset.Runegraft, Stats: []dataset.StatValue{{Stat: 1, Value: 2}, {Stat: 2, Value: 3}}, Icon: "Art/warp.png", Target: dataset.MasteryTarget, MinNeighbours: 2, MaxNeighbours: 4},
@@ -123,6 +126,7 @@ func TestOverrides(t *testing.T) {
 	// Might has a ruthless alternate without buffs; Acrobatics has none.
 	ruthless := slices.Clone(want)
 	ruthless[1].Stats = []dataset.StatValue{{Stat: 3, Value: 20}}
+	ruthless[2].Stats = ruthless[1].Stats
 	for i, w := range [][]dataset.NodeOverride{want, ruthless} {
 		if diff := cmp.Diff(w, got.Trees[i].Overrides, cmpopts.EquateEmpty()); diff != "" {
 			t.Errorf("tree %s overrides mismatch (-want +got):\n%s", got.Trees[i].Variant, diff)
@@ -131,6 +135,7 @@ func TestOverrides(t *testing.T) {
 	wantNames := []dataset.Name{
 		{ID: "KeystoneAcrobatics", Name: "Acrobatics"},
 		{ID: "KeystoneMight", Name: "Might"},
+		{ID: "KeystoneMightOwnStats", Name: "Might"},
 		{ID: "Tasalio3", Name: "Tattoo of the Tasalio Shaman"},
 		{ID: "runegraft_1", Name: "Runegraft of the Warp"},
 	}
@@ -144,6 +149,7 @@ func TestOverrides(t *testing.T) {
 		"override Bad2: no PassiveSkillTattoos row gives it a target; left out",
 		"override Bad3: no icon; left out",
 		"override Nameless: no English name",
+		"override KeystoneMightOwnStats: the buffs of passive Might are not carried",
 	}
 	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
 		t.Errorf("warnings mismatch (-want +got):\n%s", diff)

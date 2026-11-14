@@ -114,9 +114,10 @@ func readOverrideTables(r ot.Reader, s *dat.Schema) (overrideTables, error) {
 // A tattoo that grants a random override of a type (a keystone or ascendancy tattoo) gives
 // its target to every override of that type, and its own placeholder override is left out.
 // An override without a name of its own takes the name, icon and stats of its
-// AllocatedPassiveSkill. One that cannot be placed or shown (no target, no icon, a stat that
-// does not resolve) or that the game marks unused is left out with a warning; a missing name
-// or passive buffs, which the dataset cannot hold, are a warning only.
+// AllocatedPassiveSkill; own stats that repeat the passive's are dropped. One that cannot be
+// placed or shown (no target, no icon, a stat that does not resolve) or that the game marks
+// unused is left out with a warning; a missing name or passive buffs, which the dataset cannot
+// hold, are a warning only.
 func (t overrideTables) build(hardmode bool, nStats int, warn func(string)) ([]dataset.NodeOverride, []dataset.Name, error) {
 	byOverride, byType, placeholders, err := t.targets()
 	if err != nil {
@@ -226,6 +227,10 @@ func (t overrideTables) override(row overrideRow, hardmode bool, nStats int, war
 		if len(ps) > len(pv) {
 			return o, name, fmt.Sprintf("passive %s has %d stats", p.Name, len(ps)), nil
 		}
+		// The keystone tattoos of 3.27 and before repeat their passive's stats as their own.
+		if sameStats(refs, values, p.Stats, []int32{p.Value1, p.Value2, p.Value3, p.Value4, p.Value5}) {
+			refs, values = nil, nil
+		}
 		refs, values = append(slices.Clone(refs), ps...), append(slices.Clone(values), pv[:len(ps)]...)
 		if len(buffs) > 0 {
 			warn(fmt.Sprintf("override %s: the buffs of passive %s are not carried", row.ID, p.Name))
@@ -259,6 +264,27 @@ func (t overrideTables) override(row overrideRow, hardmode bool, nStats int, war
 	slices.Sort(o.ExcludedNodes)
 	o.ExcludedNodes = slices.Compact(o.ExcludedNodes)
 	return o, name, "", nil
+}
+
+// sameStats reports whether a and b hold the same stats with the same values, in any order.
+// bv may be longer than b.
+func sameStats(a []dat.Ref, av []int32, b []dat.Ref, bv []int32) bool {
+	if len(a) != len(b) || len(b) > len(bv) {
+		return false
+	}
+	pairs := func(refs []dat.Ref, values []int32) [][2]int {
+		out := make([][2]int, len(refs))
+		for i, ref := range refs {
+			row, ok := ref.Row()
+			if !ok {
+				row = -1
+			}
+			out[i] = [2]int{row, int(values[i])}
+		}
+		slices.SortFunc(out, func(x, y [2]int) int { return cmp.Or(cmp.Compare(x[0], y[0]), cmp.Compare(x[1], y[1])) })
+		return out
+	}
+	return slices.Equal(pairs(a, av), pairs(b, bv))
 }
 
 // overridesIn returns overrides for tree t: a node t lacks cannot be replaced, so it is
