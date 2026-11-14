@@ -120,8 +120,16 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Variants of one stat mode share their overrides, so each warning is given once.
+	warned := map[string]bool{}
+	warn := func(msg string) {
+		if in.Warn != nil && !warned[msg] {
+			warned[msg] = true
+			in.Warn(msg)
+		}
+	}
 	var names itemNames
-	if d.Items, d.Mods, names, err = items(r, schema, len(d.Stats), grants); err != nil {
+	if d.Items, d.Mods, names, err = items(r, schema, len(d.Stats), grants, warn); err != nil {
 		return nil, err
 	}
 	text.ItemClassNames, text.BaseNames, text.ModNames = names.classes, names.bases, names.mods
@@ -146,14 +154,6 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		radii, clusters, err := jewels(r, schema, len(d.Stats))
 		if err != nil {
 			return nil, err
-		}
-		// Variants of one stat mode share their overrides, so each warning is given once.
-		warned := map[string]bool{}
-		warn := func(msg string) {
-			if in.Warn != nil && !warned[msg] {
-				warned[msg] = true
-				in.Warn(msg)
-			}
 		}
 		var timeless []dataset.TimelessVersion
 		if timeless, text.TimelessNames, err = timelessVersions(r, schema, len(d.Stats), warn); err != nil {

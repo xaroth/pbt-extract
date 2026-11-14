@@ -3,6 +3,7 @@ package extract
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/xaroth/pbt-engine/dataset"
@@ -38,6 +39,9 @@ var modDomains = map[uint32]bool{
 	34: true, // tincture
 	38: true, // graft
 }
+
+// removedClass is the ItemClasses.Id of bases the game has taken out, such as grafts from 3.28 on.
+const removedClass = "RemovedItem"
 
 type itemClassRow struct {
 	ID   string `dat:"Id"`
@@ -271,24 +275,32 @@ type itemNames struct {
 // the mods of modDomains, and the bench crafts and essences that add one of them to items of
 // those classes. Classes, bases, mods and bench crafts are in table order, essence mods in the
 // order essences first add them. A base's tags are its own, then those of its item template
-// chain (see ot.ItemTags). nStats is the number of rows in Stats; grants holds the skill of each
-// GrantedEffectsPerLevel row.
-func items(r ot.Reader, s *dat.Schema, nStats int, grants []dataset.GrantedSkill) (*dataset.Items, []dataset.Mod, itemNames, error) {
+// chain (see ot.ItemTags). Bases of removedClass, and mods of a domain that only bases of other
+// classes have, are left out with a warning that counts them. nStats is the number of rows in
+// Stats; grants holds the skill of each GrantedEffectsPerLevel row.
+func items(r ot.Reader, s *dat.Schema, nStats int, grants []dataset.GrantedSkill, warn func(string)) (*dataset.Items, []dataset.Mod, itemNames, error) {
 	var names itemNames
 	tags, err := readIDs(r, s, "Tags")
 	if err != nil {
 		return nil, nil, names, err
 	}
 	it := &dataset.Items{Tags: tags}
-	mods, modIDs, err := itemMods(r, s, it.Tags, nStats, grants, &names)
-	if err != nil {
-		return nil, nil, names, err
-	}
 	bases, err := readRows[baseRow](r, s, "BaseItemTypes")
 	if err != nil {
 		return nil, nil, names, err
 	}
 	classes, err := readRows[itemClassRow](r, s, "ItemClasses")
+	if err != nil {
+		return nil, nil, names, err
+	}
+	orphans, removed, err := orphanDomains(bases, classes)
+	if err != nil {
+		return nil, nil, names, err
+	}
+	if removed > 0 {
+		warn(fmt.Sprintf("table BaseItemTypes: %d bases of class %s left out", removed, removedClass))
+	}
+	mods, modIDs, err := itemMods(r, s, it.Tags, nStats, grants, orphans, warn, &names)
 	if err != nil {
 		return nil, nil, names, err
 	}
@@ -334,6 +346,33 @@ func items(r ot.Reader, s *dat.Schema, nStats int, grants []dataset.GrantedSkill
 	}
 	it.Crafting = true
 	return it, mods, names, nil
+}
+
+// orphanDomains returns the mod domains of modDomains that some base has but no base of
+// itemClasses has, so no kept base rolls their mods, and the number of bases of removedClass.
+func orphanDomains(bases []baseRow, classes []itemClassRow) (map[uint32]bool, int, error) {
+	has, kept := map[uint32]bool{}, map[uint32]bool{}
+	removed := 0
+	for row, b := range bases {
+		c, err := lookup(b.Class, classes, "ItemClasses")
+		if err != nil {
+			return nil, 0, fmt.Errorf("table BaseItemTypes row %d: %w", row, err)
+		}
+		has[b.ModDomain] = true
+		if itemClasses[c.ID] {
+			kept[b.ModDomain] = true
+		}
+		if c.ID == removedClass {
+			removed++
+		}
+	}
+	orphans := map[uint32]bool{}
+	for d := range has {
+		if modDomains[d] && !kept[d] {
+			orphans[d] = true
+		}
+	}
+	return orphans, removed, nil
 }
 
 // itemBase returns the base of row b, and false when its class is not kept. modIDs holds the
@@ -633,10 +672,13 @@ func flaskValues(r ot.Reader, s *dat.Schema, base func(string, int, dat.Ref, boo
 	return nil
 }
 
-// itemMods reads the mods of modDomains, with the skills they grant (grants holds the skill of
-// each GrantedEffectsPerLevel row), and adds their names to names. It returns the mods and the
-// id of each kept Mods row.
-func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []dataset.GrantedSkill, names *itemNames) ([]dataset.Mod, map[int]string, error) {
+// itemMods reads the mods of modDomains other than those of leaveOut, with the skills they grant
+// (grants holds the skill of each GrantedEffectsPerLevel row), and adds their names to names.
+// It returns the mods and the id of each kept Mods row, and warns with the count of each domain
+// left out.
+func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []dataset.GrantedSkill,
+	leaveOut map[uint32]bool, warn func(string), names *itemNames,
+) ([]dataset.Mod, map[int]string, error) {
 	rows, err := readRows[modRow](r, s, "Mods")
 	if err != nil {
 		return nil, nil, err
@@ -651,8 +693,13 @@ func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []da
 	}
 	var mods []dataset.Mod
 	ids := map[int]string{}
+	left := map[uint32]int{}
 	for row, m := range rows {
 		if !modDomains[m.Domain] {
+			continue
+		}
+		if leaveOut[m.Domain] {
+			left[m.Domain]++
 			continue
 		}
 		mod, err := itemMod(m, types, families, tags, nStats)
@@ -670,6 +717,9 @@ func itemMods(r ot.Reader, s *dat.Schema, tags []string, nStats int, grants []da
 		if m.Name != "" {
 			names.mods = append(names.mods, dataset.Name{ID: m.ID, Name: m.Name})
 		}
+	}
+	for _, d := range slices.Sorted(maps.Keys(left)) {
+		warn(fmt.Sprintf("table Mods: %d mods of domain %d left out; no kept base has that domain", left[d], d))
 	}
 	return mods, ids, nil
 }

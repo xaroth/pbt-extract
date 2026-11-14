@@ -490,6 +490,56 @@ func TestItemModDomains(t *testing.T) {
 	}
 }
 
+// TestItemsLeftOut checks that bases the game removed, and mods of a domain only those bases
+// have, are left out with a warning that counts them, while a mod of a domain no base has is
+// kept: such mods apply to bases of another domain, as delve mods do.
+func TestItemsLeftOut(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	g["Data/ItemClasses.datc64"] = &fstest.MapFile{Data: encode(t, "ItemClasses",
+		[]any{"Body Armour", "Body Armours"}, []any{"Currency", "Currency"}, []any{"Shield", "Shields"},
+		[]any{"Two Hand Axe", "Two Hand Axes"}, []any{"LifeFlask", "Life Flasks"}, []any{"RemovedItem", "Removed Items"})}
+	graft := func(id string) []any {
+		return []any{id, 5, "Graft", []int(nil), []int(nil), "Metadata/Items/Chayula/AbstractGraft", uint32(38)}
+	}
+	g["Data/BaseItemTypes.datc64"] = &fstest.MapFile{Data: encode(t, "BaseItemTypes", slices.Concat(itemBases(), gemBases(), [][]any{
+		graft("Metadata/Items/Chayula/XophGraft1"), graft("Metadata/Items/Chayula/TulGraft1"),
+	})...)}
+	mods := itemMods()
+	for _, id := range monsterMods {
+		mods = append(mods, modRow{id: id, domain: 3, generation: 3, typ: 0})
+	}
+	g["Data/Mods.datc64"] = &fstest.MapFile{Data: encodeMods(t, append(mods,
+		modRow{id: "GraftLife1", domain: 38, generation: 1, typ: 0},
+		modRow{id: "GraftLife2", domain: 38, generation: 1, typ: 0},
+		modRow{id: "DelveLife1", domain: 16, generation: 1, typ: 0})...)}
+	in := input(t, g, export())
+	var warnings []string
+	in.Warn = func(msg string) { warnings = append(warnings, msg) }
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	wantWarnings := []string{
+		"table BaseItemTypes: 2 bases of class RemovedItem left out",
+		"table Mods: 2 mods of domain 38 left out; no kept base has that domain",
+	}
+	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
+		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+	}
+	var gotMods []string
+	for _, m := range got.Mods {
+		gotMods = append(gotMods, m.ID)
+	}
+	wantMods := []string{"IncreasedLife1", "AllResistancesImplicitArmour1", "FlaskInstantRecovery", "DelveLife1"}
+	if diff := cmp.Diff(wantMods, gotMods); diff != "" {
+		t.Errorf("mods mismatch (-want +got):\n%s", diff)
+	}
+	if n := len(got.Items.Bases); n != 4 {
+		t.Errorf("got %d bases, want 4", n)
+	}
+}
+
 // TestBenchCrafts checks which crafting bench options become crafts and the classes each
 // applies to: by category, by class, or both; outside the kept classes; disabled; adding an
 // enchantment; adding nothing.
