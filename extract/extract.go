@@ -155,10 +155,12 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
-		var timeless []dataset.TimelessVersion
-		if timeless, text.TimelessNames, err = timelessVersions(r, schema, len(d.Stats), warn); err != nil {
+		timeless, names, err := timelessVersions(r, schema, len(d.Stats), warn)
+		if err != nil {
 			return nil, err
 		}
+		text.TimelessNames, text.TimelessVersionNames, text.TimelessJewelNames, text.ConquerorNames =
+			names.Replacements, names.Factions, names.Jewels, names.Conquerors
 		overs := map[bool][]dataset.NodeOverride{}
 		nodeNames := map[uint32]string{}
 		for _, v := range in.Trees {

@@ -21,7 +21,10 @@ const timelessTablesJSON = `
 		{"name": "SmallAttributeAdditionsMin", "type": "i32"}, {"name": "SmallAttributeAdditionsMax", "type": "i32"},
 		{"name": "SmallNormalAdditionsMin", "type": "i32"}, {"name": "SmallNormalAdditionsMax", "type": "i32"},
 		{"name": "NotableAdditionsMin", "type": "i32"}, {"name": "NotableAdditionsMax", "type": "i32"},
-		{"name": "NotableReplacementChance", "type": "i32"}]},
+		{"name": "NotableReplacementChance", "type": "i32"}, {"name": "Name", "type": "string"}]},
+	{"name": "AlternateTreeVersionKeystones", "columns": [
+		{"name": "Version", "type": "foreignrow"}, {"name": "ConquerorIndex", "type": "i32"},
+		{"name": "Conqueror", "type": "string"}, {"name": "ConquerorVersion", "type": "i32"}]},
 	{"name": "AlternatePassiveSkills", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "AlternateTreeVersionsKey", "type": "foreignrow"},
 		{"name": "Name", "type": "string"}, {"name": "PassiveType", "type": "enumrow", "array": true}, {"name": "StatsKeys", "type": "foreignrow", "array": true},
@@ -40,15 +43,21 @@ const timelessTablesJSON = `
 // timelessGame adds alternate tree tables without rows to g.
 func timelessGame(t *testing.T, g fstest.MapFS) {
 	t.Helper()
-	for _, name := range []string{"AlternateTreeVersions", "AlternatePassiveSkills", "AlternatePassiveAdditions"} {
+	for _, name := range []string{"AlternateTreeVersions", "AlternatePassiveSkills", "AlternatePassiveAdditions", "AlternateTreeVersionKeystones"} {
 		g["Data/"+name+".datc64"] = &fstest.MapFile{Data: encode(t, name)}
 	}
 }
 
-// treeVersion is one AlternateTreeVersions row; the small attribute, small normal and notable
-// addition counts are each n to n.
+// treeVersion is one AlternateTreeVersions row without a name, as before 3.30; the small
+// attribute, small normal and notable addition counts are each n to n.
 func treeVersion(id string, replaced bool, n, chance int32) []any {
-	return []any{id, replaced, replaced, n, n, n, n, n, n, chance}
+	return []any{id, replaced, replaced, n, n, n, n, n, n, chance, ""}
+}
+
+// named sets the name of a treeVersion row.
+func named(row []any, name string) []any {
+	row[len(row)-1] = name
+	return row
 }
 
 // altPassive is one AlternatePassiveSkills row with stat ranges [lo, hi] each, named "Name of
@@ -126,6 +135,49 @@ func TestTimeless(t *testing.T) {
 	wantNames := []dataset.Name{{ID: "vaal_keystone_2_v2", Name: "Name of vaal_keystone_2_v2"}}
 	if diff := cmp.Diff(wantNames, got.Texts[0].TimelessNames); diff != "" {
 		t.Errorf("timeless names mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// From 3.30 the game files name each version's faction and conqueror.
+func TestTimelessNames(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	timelessRows(t, g,
+		[][]any{treeVersion("None", false, 0, 0), named(treeVersion("Vaal", true, 0, 100), "Vaal"), treeVersion("Karui", false, 1, 0),
+			named(treeVersion("AbyssMurderous", true, 0, 0), "Abyssal")},
+		[][]any{
+			altPassive("vaal_keystone_1", 1, []uint32{4}, []int{4}, 1, 1, 100, 1, 0),
+			altPassive("vaal_keystone_2", 1, []uint32{4}, []int{4}, 1, 1, 100, 2, 0),
+			altPassive("vaal_keystone_2_v2", 1, []uint32{4}, []int{4}, 1, 1, 100, 2, 1),
+			altPassive("vaal_small_life", 1, []uint32{1}, []int{1}, 5, 9, 50, 0, 0),
+			altPassive("karui_keystone_1", 2, []uint32{4}, []int{4}, 1, 1, 100, 1, 0),
+			altPassive("abyss_keystone_1", 3, []uint32{4}, []int{4}, 1, 1, 100, 1, 0),
+		},
+		nil)
+	g["Data/AlternateTreeVersionKeystones.datc64"] = &fstest.MapFile{Data: encode(t, "AlternateTreeVersionKeystones",
+		[]any{1, int32(1), "Xibaqua", int32(0)}, []any{1, int32(2), "Zerphi", int32(0)}, []any{1, int32(2), "Mazcotl", int32(1)},
+		[]any{3, int32(1), "Tecrod", int32(0)},
+	)}
+	in := input(t, g, export())
+	var warnings []string
+	in.Warn = func(msg string) { warnings = append(warnings, msg) }
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	wantWarnings := []string{"timeless keystone karui_keystone_1 has no conqueror name", "timeless version Karui has no name"}
+	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
+		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+	}
+	text := got.Texts[0]
+	if diff := cmp.Diff([]dataset.Name{{ID: "Vaal", Name: "Vaal"}}, text.TimelessVersionNames); diff != "" {
+		t.Errorf("faction names mismatch (-want +got):\n%s", diff)
+	}
+	wantConquerors := []dataset.Name{
+		{ID: "vaal_keystone_1", Name: "Xibaqua"}, {ID: "vaal_keystone_2", Name: "Zerphi"}, {ID: "vaal_keystone_2_v2", Name: "Mazcotl"},
+	}
+	if diff := cmp.Diff(wantConquerors, text.ConquerorNames); diff != "" {
+		t.Errorf("conqueror names mismatch (-want +got):\n%s", diff)
 	}
 }
 

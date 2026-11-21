@@ -74,7 +74,7 @@
       ],
       "position": 0,
       "name": "SmallAttributeReplaced",
-      "note": "A small attribute passive (+Strength, +Dexterity or +Intelligence alone) is replaced, not added to. From 3.30 the gap ends with a string, the version's English name (\"Templars\", \"Eternal Empire\"), not read.",
+      "note": "A small attribute passive (+Strength, +Dexterity or +Intelligence alone) is replaced, not added to. From 3.30 the gap ends with the version's name.",
       "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
     },
     {
@@ -340,6 +340,61 @@
       "name": "NotableReplacementChance",
       "note": "Chance in percent that a notable is replaced rather than added to.",
       "source": "Our reading of the AlternateTreeVersions, AlternatePassiveSkills and AlternatePassiveAdditions rows of 3.26, 3.28.0.16 and 3.29.3.3; the timeless jewel draws these columns give agree with Path of Building's timeless jewel lookup tables on every 3.29.3.3 node and seed it lists"
+    },
+    {
+      "table": "AlternateTreeVersions",
+      "after": "Id",
+      "gaps": [
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32"
+        ],
+        [
+          "bool",
+          "bool",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "i32",
+          "string"
+        ]
+      ],
+      "position": 9,
+      "name": "Name",
+      "note": "The version's English name, the faction a jewel's text names (\"Templars\", \"Eternal Empire\"). Game files before 3.30 do not have it.",
+      "source": "Our reading of the AlternateTreeVersions rows of 3.30.0.4 against the factions 3.29.3.3's timeless jewel descriptions name"
+    },
+    {
+      "table": "AlternateTreeVersionKeystones",
+      "after": "Version",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "ConquerorIndex",
+      "note": "The conqueror's keystone, as AlternatePassiveSkills.ConquerorIndex numbers it.",
+      "source": "Our reading of the AlternateTreeVersionKeystones rows of 3.30.0.4 against the conquerors 3.29.3.3's timeless jewel descriptions name by version, keystone and revision"
+    },
+    {
+      "table": "AlternateTreeVersionKeystones",
+      "after": "Conqueror",
+      "gap": [
+        "i32"
+      ],
+      "position": 0,
+      "name": "ConquerorVersion",
+      "note": "The revision that names the conqueror, as AlternatePassiveSkills.ConquerorVersion numbers it.",
+      "source": "Our reading of the AlternateTreeVersionKeystones rows of 3.30.0.4 against the conquerors 3.29.3.3's timeless jewel descriptions name by version, keystone and revision"
     },
     {
       "table": "AlternatePassiveSkills",
