@@ -28,8 +28,8 @@ type timelessVersionRow struct {
 // conquerorRow names the conqueror of a version's keystone and revision; from 3.30 on.
 type conquerorRow struct {
 	Version  dat.Ref `dat:"Version" ref:"AlternateTreeVersions"`
-	Keystone int32   `dat:"ConquerorIndex"`
-	Revision int32   `dat:"ConquerorVersion"`
+	Keystone int32   `dat:"StatValue"`
+	Revision int32   `dat:"InternalVersion"`
 	Name     string  `dat:"Conqueror"`
 }
 
@@ -321,9 +321,10 @@ type wordRow struct {
 const uniqueWordlist = 6
 
 // jewelNames returns the names of the unique jewels of the kept versions, by version id. A jewel
-// of a version the game files do not keep, or whose name is not a unique item name in Words,
-// fails the build.
-func jewelNames(r ot.Reader, s *dat.Schema, versions []dataset.TimelessVersion, jewels []TimelessJewel) ([]dataset.Name, error) {
+// of a version the game files do not keep, such as a version an older league lacks, is a
+// warning and left out. A kept jewel whose name is not a unique item name in Words fails the
+// build.
+func jewelNames(r ot.Reader, s *dat.Schema, versions []dataset.TimelessVersion, jewels []TimelessJewel, warn func(string)) ([]dataset.Name, error) {
 	if len(jewels) == 0 {
 		return nil, nil
 	}
@@ -340,7 +341,8 @@ func jewelNames(r ot.Reader, s *dat.Schema, versions []dataset.TimelessVersion, 
 	var out []dataset.Name
 	for _, j := range jewels {
 		if !slices.ContainsFunc(versions, func(v dataset.TimelessVersion) bool { return v.ID == j.Version }) {
-			return nil, fmt.Errorf("timeless jewel %s: no kept version %s", j.Name, j.Version)
+			warn(fmt.Sprintf("timeless jewel %s: no kept version %s; left out", j.Name, j.Version))
+			continue
 		}
 		if !uniques[j.Name] {
 			return nil, fmt.Errorf("timeless jewel %s of version %s: not a unique item name in Words", j.Name, j.Version)

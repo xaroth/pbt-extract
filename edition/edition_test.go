@@ -127,8 +127,8 @@ func TestValuesFor(t *testing.T) {
 
 func TestNameColumnsByLayout(t *testing.T) {
 	t.Parallel()
-	// AlternateTreeVersions as dat-schema 717d788 (3.26 to 3.29) and 1416c40 (3.30, with the
-	// version's name last) define it for poe1.
+	// AlternateTreeVersions as dat-schema 717d788 (3.26 to 3.29), 1416c40 (3.30, with the
+	// version's name last) and c54d74b (which names it) define it for poe1.
 	const versions = `{"name": "AlternateTreeVersions", "columns": [{"name": "Id", "type": "string"},
 		{"name": null, "type": "bool"}, {"name": null, "type": "bool"},
 		{"name": null, "type": "i32"}, {"name": null, "type": "i32"}, {"name": null, "type": "i32"},
@@ -139,7 +139,7 @@ func TestNameColumnsByLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	names := slices.DeleteFunc(e.ColumnNames(), func(c dat.ColumnName) bool { return c.Table != "AlternateTreeVersions" })
-	for _, extra := range []string{"", `, {"name": null, "type": "string"}`} {
+	for _, extra := range []string{"", `, {"name": null, "type": "string"}`, `, {"name": "Name", "type": "string"}`} {
 		s, err := dat.ParseSchema([]byte(`{"version": 7, "tables": [` + fmt.Sprintf(versions, extra) + `]}`))
 		if err != nil {
 			t.Fatal(err)
@@ -155,6 +155,34 @@ func TestNameColumnsByLayout(t *testing.T) {
 		}
 		if got, ok := def.Column("Name"); ok != (extra != "") || ok && got != 10 {
 			t.Errorf("with %q: Column(\"Name\"): got %d, %v", extra, got, ok)
+		}
+	}
+}
+
+func TestNameConquerorColumns(t *testing.T) {
+	t.Parallel()
+	// AlternateTreeVersionKeystones as dat-schema 1416c40 and c54d74b define it for poe1.
+	const keystones = `{"name": "AlternateTreeVersionKeystones", "columns": [
+		{"name": "Version", "type": "foreignrow", "references": {"table": "AlternateTreeVersions"}},
+		{"name": %s, "type": "i32"}, {"name": "Conqueror", "type": "string"}, {"name": %s, "type": "i32"}]}`
+	e, err := edition.Load("poe1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := slices.DeleteFunc(e.ColumnNames(), func(c dat.ColumnName) bool { return c.Table != "AlternateTreeVersionKeystones" })
+	for _, cols := range [][2]string{{"null", "null"}, {`"StatValue"`, `"InternalVersion"`}} {
+		s, err := dat.ParseSchema([]byte(`{"version": 7, "tables": [` + fmt.Sprintf(keystones, cols[0], cols[1]) + `]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.NameColumns(names); err != nil {
+			t.Fatalf("NameColumns with %v: %v", cols, err)
+		}
+		def, _ := s.Table("AlternateTreeVersionKeystones")
+		for name, want := range map[string]int{"StatValue": 1, "InternalVersion": 3} {
+			if got, ok := def.Column(name); !ok || got != want {
+				t.Errorf("with %v: Column(%q): got %d, %v, want %d, true", cols, name, got, ok, want)
+			}
 		}
 	}
 }

@@ -147,8 +147,10 @@ func Load(game string) (*Edition, error) {
 		if len(k.Gap) > 0 {
 			gaps = append(gaps, k.Gap)
 		}
-		if k.Table == "" || k.After == "" || (len(k.Gap) > 0) == (len(k.Gaps) > 0) || slices.ContainsFunc(gaps, func(g []string) bool { return len(g) == 0 }) ||
-			k.Position == nil || k.Name == "" || k.Note == "" || k.Source == "" {
+		// An empty layout in gaps is a schema that names the column itself.
+		if k.Table == "" || k.After == "" || (len(k.Gap) > 0) == (len(k.Gaps) > 0) || k.Position == nil ||
+			!slices.ContainsFunc(gaps, func(g []string) bool { return *k.Position < len(g) }) ||
+			k.Name == "" || k.Note == "" || k.Source == "" {
 			return nil, fmt.Errorf("%s/columns.json: column name %q needs table, after, gap or gaps, position, name, note and source", game, k.Name)
 		}
 		e.Columns = append(e.Columns, ColumnName{
