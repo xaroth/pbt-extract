@@ -377,23 +377,29 @@
     {
       "table": "AlternateTreeVersionKeystones",
       "after": "Version",
-      "gap": [
-        "i32"
+      "gaps": [
+        [
+          "i32"
+        ],
+        []
       ],
       "position": 0,
-      "name": "ConquerorIndex",
-      "note": "The conqueror's keystone, as AlternatePassiveSkills.ConquerorIndex numbers it.",
+      "name": "StatValue",
+      "note": "The conqueror's keystone, as AlternatePassiveSkills.ConquerorIndex numbers it. dat-schema names it StatValue from c54d74b on; earlier commits leave it unnamed.",
       "source": "Our reading of the AlternateTreeVersionKeystones rows of 3.30.0.4 against the conquerors 3.29.3.3's timeless jewel descriptions name by version, keystone and revision"
     },
     {
       "table": "AlternateTreeVersionKeystones",
       "after": "Conqueror",
-      "gap": [
-        "i32"
+      "gaps": [
+        [
+          "i32"
+        ],
+        []
       ],
       "position": 0,
-      "name": "ConquerorVersion",
-      "note": "The revision that names the conqueror, as AlternatePassiveSkills.ConquerorVersion numbers it.",
+      "name": "InternalVersion",
+      "note": "The revision that names the conqueror, as AlternatePassiveSkills.ConquerorVersion numbers it. dat-schema names it InternalVersion from c54d74b on; earlier commits leave it unnamed.",
       "source": "Our reading of the AlternateTreeVersionKeystones rows of 3.30.0.4 against the conquerors 3.29.3.3's timeless jewel descriptions name by version, keystone and revision"
     },
     {

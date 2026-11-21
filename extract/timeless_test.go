@@ -25,8 +25,8 @@ const timelessTablesJSON = `
 		{"name": "NotableReplacementChance", "type": "i32"}, {"name": "Name", "type": "string"}]},
 	{"name": "Words", "columns": [{"name": "Wordlist", "type": "enumrow"}, {"name": "Text", "type": "string"}]},
 	{"name": "AlternateTreeVersionKeystones", "columns": [
-		{"name": "Version", "type": "foreignrow"}, {"name": "ConquerorIndex", "type": "i32"},
-		{"name": "Conqueror", "type": "string"}, {"name": "ConquerorVersion", "type": "i32"}]},
+		{"name": "Version", "type": "foreignrow"}, {"name": "StatValue", "type": "i32"},
+		{"name": "Conqueror", "type": "string"}, {"name": "InternalVersion", "type": "i32"}]},
 	{"name": "AlternatePassiveSkills", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "AlternateTreeVersionsKey", "type": "foreignrow"},
 		{"name": "Name", "type": "string"}, {"name": "PassiveType", "type": "enumrow", "array": true}, {"name": "StatsKeys", "type": "foreignrow", "array": true},

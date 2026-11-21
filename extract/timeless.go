@@ -28,8 +28,8 @@ type timelessVersionRow struct {
 // conquerorRow names the conqueror of a version's keystone and revision; from 3.30 on.
 type conquerorRow struct {
 	Version  dat.Ref `dat:"Version" ref:"AlternateTreeVersions"`
-	Keystone int32   `dat:"ConquerorIndex"`
-	Revision int32   `dat:"ConquerorVersion"`
+	Keystone int32   `dat:"StatValue"`
+	Revision int32   `dat:"InternalVersion"`
 	Name     string  `dat:"Conqueror"`
 }
 
