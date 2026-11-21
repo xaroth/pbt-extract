@@ -269,13 +269,25 @@ func variant(line string, n int) (v statdesc.Variant, quality bool, err error) {
 		h := statdesc.Handler{Name: hs[i]}
 		if h.Name == "reminderstring" {
 			i++ // reminder text id, not displayed
-		} else if i+1 < len(hs) {
-			if idx, err := strconv.Atoi(hs[i+1]); err == nil {
-				if idx < 1 || idx > n {
-					return v, false, fmt.Errorf("handler %s stat %d out of range: %q", h.Name, idx, line)
-				}
+			v.Handlers = append(v.Handlers, h)
+			continue
+		}
+		for k := 0; i+1 < len(hs); k++ {
+			idx, err := strconv.Atoi(hs[i+1])
+			if err != nil {
+				break
+			}
+			i++
+			if k > 0 && idx == 0 {
+				continue // no stat, as display_indexable_skill writes for the level it does not show
+			}
+			if idx < 1 || idx > n {
+				return v, false, fmt.Errorf("handler %s stat %d out of range: %q", h.Name, idx, line)
+			}
+			if k == 0 {
 				h.Stat = idx - 1
-				i++
+			} else {
+				h.Args = append(h.Args, idx-1)
 			}
 		}
 		v.Handlers = append(v.Handlers, h)

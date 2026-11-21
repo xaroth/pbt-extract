@@ -112,6 +112,42 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// Numbers after a handler's stat are further stats it reads; 0 there is no stat.
+func TestParseHandlerArgs(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, src string
+		want      []statdesc.Handler
+	}{
+		{
+			"timeless conqueror",
+			"description\n\t4 v s k r\n\t1\n\t\t1 # # # \"{1} of {2}, the {0}\" alternate_tree_version_name 1 alternate_tree_version_keystone 3 1 4 reminderstring ReminderTextConqueredPassives\n",
+			[]statdesc.Handler{{Name: "alternate_tree_version_name"}, {Name: "alternate_tree_version_keystone", Stat: 2, Args: []int{0, 3}}, {Name: "reminderstring"}},
+		},
+		{
+			"indexable skill without a level",
+			"description\n\t2 random_skill_gem_level_+_level random_skill_gem_level_+_index\n\t1\n\t\t1|#  # \"+{0} to Level of all {1} Gems\" display_indexable_skill 2 0\n",
+			[]statdesc.Handler{{Name: "display_indexable_skill", Stat: 1}},
+		},
+		{
+			"indexable support with its level",
+			"description\n\t2 local_random_support_gem_level local_random_support_gem_index\n\t1\n\t\t# # \"Socketed Gems are Supported by Level {0} {1}\" display_indexable_support 2 1\n",
+			[]statdesc.Handler{{Name: "display_indexable_support", Stat: 1, Args: []int{0}}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parser.Parse("f.txt", encode(tc.src))
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, got.Descriptions[0].Variants[0].Handlers); diff != "" {
+				t.Errorf("handlers mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 // The game reads a number with a stray # as the number: this variant is followed by 100|#.
 func TestParseStrayHash(t *testing.T) {
 	t.Parallel()
@@ -156,6 +192,7 @@ func TestParseErrors(t *testing.T) {
 		{name: "bad not limit", src: encode("description\n\t1 a\n\t1\n\t\t!x \"x\"\n")},
 		{name: "missing text", src: encode("description\n\t1 a\n\t1\n\t\t#\n")},
 		{name: "handler stat out of range", src: encode("description\n\t1 a\n\t1\n\t\t# \"x\" negate 2\n")},
+		{name: "handler arg out of range", src: encode("description\n\t2 a b\n\t1\n\t\t# # \"x\" negate 1 3\n")},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
