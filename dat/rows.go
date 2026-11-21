@@ -61,7 +61,8 @@ var (
 // two tables checks it. Fields must be exported. Lists of unknown element type are not
 // supported. Fields are checked against the schema before any row is decoded. A field whose
 // column the file lacks (see Read) is an error, unless its dat tag adds ",optional" after the
-// name: such a field stays zero, for columns that older game files do not have yet.
+// name: such a field stays zero, for columns that older game files do not have yet. An optional
+// field may also name a column the schema lacks, as the schema of an older patch does.
 func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	def, ok := s.Table(name)
 	if !ok {
@@ -84,7 +85,7 @@ func Rows[T any](s *Schema, name string, b []byte) ([]T, error) {
 	for r := range out {
 		rv := reflect.ValueOf(&out[r]).Elem()
 		for f, c := range cols {
-			if c >= t.Columns() {
+			if c < 0 || c >= t.Columns() {
 				continue
 			}
 			v, err := t.Value(r, c)
@@ -122,6 +123,10 @@ func fieldColumns(s *Schema, def TableDef, typ reflect.Type) (cols []int, option
 			return nil, nil, fmt.Errorf("field %s: unknown dat tag option %q", f.Name, opt)
 		}
 		c, ok := def.Column(name)
+		if !ok && optional[i] {
+			cols[i] = -1
+			continue
+		}
 		if !ok {
 			return nil, nil, fmt.Errorf("no column %s", name)
 		}

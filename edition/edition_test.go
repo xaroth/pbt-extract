@@ -49,7 +49,8 @@ func TestNameColumns(t *testing.T) {
 	}{
 		{name: "unnamed", table: fmt.Sprintf(quests, "null")},
 		{name: "named by dat-schema", table: fmt.Sprintf(quests, `"Points"`), wantErr: true},
-		{name: "table missing", table: `{"name": "Other", "columns": []}`, wantErr: true},
+		// as the schema of a patch before the table
+		{name: "table missing", table: `{"name": "Other", "columns": []}`},
 	}
 	e, err := edition.Load("poe1")
 	if err != nil {
@@ -71,7 +72,10 @@ func TestNameColumns(t *testing.T) {
 			if testCase.wantErr {
 				return
 			}
-			def, _ := s.Table("QuestStaticRewards")
+			def, ok := s.Table("QuestStaticRewards")
+			if !ok {
+				return
+			}
 			for name, want := range map[string]int{"PassivePoints": 1, "AscendancyPoints": 5, "RefundPoints": 7, "LeagueReward": 10} {
 				if got, ok := def.Column(name); !ok || got != want {
 					t.Errorf("Column(%q): got %d, %v, want %d, true", name, got, ok, want)

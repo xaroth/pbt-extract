@@ -120,6 +120,17 @@ func TestRowsMissingColumns(t *testing.T) {
 	if diff := cmp.Diff([]optionalRow{{ID: "first"}}, opt); diff != "" {
 		t.Errorf("optional column (-want +got)\n%s", diff)
 	}
+	type unknownRow struct {
+		ID   string `dat:"Id"`
+		Name string `dat:"Name,optional"`
+	}
+	unknown, err := dat.Rows[unknownRow](s, "T", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]unknownRow{{ID: "first"}}, unknown); diff != "" {
+		t.Errorf("optional column the schema lacks (-want +got)\n%s", diff)
+	}
 	_, err = dat.Rows[struct {
 		Int int32 `dat:"Int,later"`
 	}](s, "T", b)

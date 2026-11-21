@@ -272,15 +272,16 @@ func TestNameColumns(t *testing.T) {
 		name    string
 		names   []dat.ColumnName
 		wantErr string
+		absent  bool // the schema lacks the column
 	}{
 		{name: "unnamed column", names: []dat.ColumnName{count}},
-		{name: "unknown table", names: with(func(c *dat.ColumnName) { c.Table = "X" }), wantErr: "table not in schema"},
+		{name: "table not in schema", names: with(func(c *dat.ColumnName) { c.Table = "X" }), absent: true},
 		{name: "unknown after", names: with(func(c *dat.ColumnName) { c.After = "X" }), wantErr: "no column X"},
-		{name: "position outside the gap", names: with(func(c *dat.ColumnName) { c.Position = 1 }), wantErr: "outside a gap of 1"},
+		{name: "position outside the gap", names: with(func(c *dat.ColumnName) { c.Position = 1 }), wantErr: "outside every gap"},
 		{name: "another gap matches", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]", "string"}, {"[array]"}} })},
 		{name: "kind differs", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"array"}} }), wantErr: "are [[array]], want one of [[array]]"},
 		{name: "gap grew", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]", "i32"}} }), wantErr: "want one of [[[array] i32]]"},
-		{name: "position outside another gap", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]"}, {}} }), wantErr: "outside a gap of 0"},
+		{name: "layout without the column", names: with(func(c *dat.ColumnName) { c.Gaps = [][]string{{"[array]", "string"}, {"[array]"}}; c.Position = 1 }), absent: true},
 		{name: "column named by dat-schema", names: with(func(c *dat.ColumnName) { c.After = "Ints" }), wantErr: "unnamed columns after Ints are []"},
 		{name: "name taken", names: with(func(c *dat.ColumnName) { c.Name = "Id" }), wantErr: "already taken"},
 	}
@@ -306,6 +307,12 @@ func TestNameColumns(t *testing.T) {
 				t.Fatal(err)
 			}
 			def, _ := s.Table("T")
+			if testCase.absent {
+				if _, ok := def.Column("Count"); ok || def.Columns[13].Name != nil {
+					t.Error("named a column the layout lacks")
+				}
+				return
+			}
 			if got, ok := def.Column("Count"); !ok || got != 13 {
 				t.Errorf(`Column("Count"): got %d, %v, want 13, true`, got, ok)
 			}

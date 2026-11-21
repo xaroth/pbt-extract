@@ -135,8 +135,9 @@ func (c Column) Kind() string {
 // ColumnName is our name for a column dat-schema leaves unnamed. Unnamed columns sit in gaps
 // between named ones, so a column is located by the named column After that starts its gap and
 // its Position (from 0) in that gap; each of Gaps lists the Kind of every column in a gap the
-// column may sit in, as the dat-schema of one patch or another lays it out. Unlike a column
-// index, this holds across patches that add or remove columns elsewhere in the table.
+// column may sit in, as the dat-schema of one patch or another lays it out. A gap too short for
+// Position is the layout of patches without the column. Unlike a column index, this holds across
+// patches that add or remove columns elsewhere in the table.
 type ColumnName struct {
 	Table    string
 	After    string
@@ -148,7 +149,8 @@ type ColumnName struct {
 // NameColumns gives unnamed columns our names. Every column is located before any is named, so
 // on error s is unchanged. It fails when a table or After column is missing, when the gap after
 // After is none of Gaps (dat-schema named, added, removed or retyped a column in it), or when
-// a name is taken.
+// a name is taken. A column of a table s lacks, or whose gap is too short for it, is not in s
+// and gets no name: the schema of an older patch lacks the tables and columns later patches add.
 func (s *Schema) NameColumns(names []ColumnName) error {
 	index := make([]int, len(names))
 	for i, n := range names {
@@ -158,6 +160,9 @@ func (s *Schema) NameColumns(names []ColumnName) error {
 		}
 	}
 	for i, n := range names {
+		if index[i] < 0 {
+			continue
+		}
 		t := s.tables[n.Table]
 		if _, taken := t.Column(n.Name); taken {
 			return fmt.Errorf("table %s: column name %s already taken", n.Table, n.Name)
@@ -170,16 +175,14 @@ func (s *Schema) NameColumns(names []ColumnName) error {
 func (s *Schema) locate(n ColumnName) (int, error) {
 	t, ok := s.tables[n.Table]
 	if !ok {
-		return 0, fmt.Errorf("table not in schema")
+		return -1, nil
 	}
 	after, ok := t.Column(n.After)
 	if !ok {
 		return 0, fmt.Errorf("no column %s", n.After)
 	}
-	for _, g := range n.Gaps {
-		if n.Position < 0 || n.Position >= len(g) {
-			return 0, fmt.Errorf("position %d outside a gap of %d", n.Position, len(g))
-		}
+	if n.Position < 0 || !slices.ContainsFunc(n.Gaps, func(g []string) bool { return n.Position < len(g) }) {
+		return 0, fmt.Errorf("position %d outside every gap", n.Position)
 	}
 	var gap []string
 	for _, c := range t.Columns[after+1:] {
@@ -190,6 +193,9 @@ func (s *Schema) locate(n ColumnName) (int, error) {
 	}
 	if !slices.ContainsFunc(n.Gaps, func(g []string) bool { return slices.Equal(gap, g) }) {
 		return 0, fmt.Errorf("unnamed columns after %s are %v, want one of %v", n.After, gap, n.Gaps)
+	}
+	if n.Position >= len(gap) {
+		return -1, nil
 	}
 	return after + 1 + n.Position, nil
 }
