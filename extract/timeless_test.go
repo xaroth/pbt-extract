@@ -1,6 +1,7 @@
 package extract_test
 
 import (
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -22,6 +23,7 @@ const timelessTablesJSON = `
 		{"name": "SmallNormalAdditionsMin", "type": "i32"}, {"name": "SmallNormalAdditionsMax", "type": "i32"},
 		{"name": "NotableAdditionsMin", "type": "i32"}, {"name": "NotableAdditionsMax", "type": "i32"},
 		{"name": "NotableReplacementChance", "type": "i32"}, {"name": "Name", "type": "string"}]},
+	{"name": "Words", "columns": [{"name": "Wordlist", "type": "enumrow"}, {"name": "Text", "type": "string"}]},
 	{"name": "AlternateTreeVersionKeystones", "columns": [
 		{"name": "Version", "type": "foreignrow"}, {"name": "ConquerorIndex", "type": "i32"},
 		{"name": "Conqueror", "type": "string"}, {"name": "ConquerorVersion", "type": "i32"}]},
@@ -178,6 +180,49 @@ func TestTimelessNames(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantConquerors, text.ConquerorNames); diff != "" {
 		t.Errorf("conqueror names mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// The edition names the unique jewel of each version; the name must be a unique item name.
+func TestTimelessJewelNames(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name    string
+		jewels  []extract.TimelessJewel
+		want    []dataset.Name
+		wantErr string
+	}{
+		{name: "named", jewels: []extract.TimelessJewel{{Version: "Vaal", Name: "Glorious Vanity"}},
+			want: []dataset.Name{{ID: "Vaal", Name: "Glorious Vanity"}}},
+		{name: "none"},
+		{name: "not a unique item name", jewels: []extract.TimelessJewel{{Version: "Vaal", Name: "Dire"}}, wantErr: "not a unique item name"},
+		{name: "unknown version", jewels: []extract.TimelessJewel{{Version: "Karui", Name: "Lethal Pride"}}, wantErr: "no kept version Karui"},
+		{name: "a version left out", jewels: []extract.TimelessJewel{{Version: "AbyssMurderous", Name: "Lethal Pride"}}, wantErr: "no kept version"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			g := game(t)
+			timelessRows(t, g, [][]any{treeVersion("None", false, 0, 0), treeVersion("Vaal", true, 0, 100), treeVersion("AbyssMurderous", true, 0, 0)}, nil, nil)
+			// Dire is an item prefix (list 1), Glorious Vanity and Lethal Pride unique item names (list 6)
+			g["Data/Words.datc64"] = &fstest.MapFile{Data: encode(t, "Words",
+				[]any{uint32(1), "Dire"}, []any{uint32(6), "Glorious Vanity"}, []any{uint32(6), "Lethal Pride"})}
+			in := input(t, g, export())
+			in.TimelessJewels = testCase.jewels
+			got, err := extract.Dataset(in)
+			if testCase.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), testCase.wantErr) {
+					t.Fatalf("got error %v, want one containing %q", err, testCase.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(testCase.want, got.Texts[0].TimelessJewelNames); diff != "" {
+				t.Errorf("jewel names mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

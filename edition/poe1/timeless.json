@@ -1,0 +1,40 @@
+{
+  "jewels": [
+    {
+      "version": "Vaal",
+      "name": "Glorious Vanity",
+      "note": "The unique jewel whose mod names this version. No table links a version to its jewel: the name is in Words, and the jewel's art, by UniqueStashLayout and ItemVisualIdentity, is VaalCivilization.dds.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    },
+    {
+      "version": "Karui",
+      "name": "Lethal Pride",
+      "note": "As Vaal; its art is KaruiCivilization.dds.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    },
+    {
+      "version": "Maraketh",
+      "name": "Brutal Restraint",
+      "note": "As Vaal; its art is MarakethCivilization.dds.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    },
+    {
+      "version": "Templar",
+      "name": "Militant Faith",
+      "note": "As Vaal; its art is TemplarCivilization.dds.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    },
+    {
+      "version": "Eternal",
+      "name": "Elegant Hubris",
+      "note": "As Vaal; its art is EternalEmpireCivilization.dds.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    },
+    {
+      "version": "Kalguuran",
+      "name": "Heroic Tragedy",
+      "note": "As Vaal; its art is ExpeditonCivilization.dds, named for the Expedition league that brought the Kalguur.",
+      "source": "Words (UNIQUE_ITEM list), UniqueStashLayout and ItemVisualIdentity of 3.30.0.4: the jewel's name and the faction its art is named for"
+    }
+  ]
+}

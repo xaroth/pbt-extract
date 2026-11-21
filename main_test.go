@@ -134,18 +134,22 @@ func TestRealRuthlessGrants(t *testing.T) {
 	}
 }
 
-// TestRealTimelessFactionsConquerors checks that the real 3.30 dataset names the faction of each
-// version of the six unique timeless jewels, and the conqueror of each of their keystones.
-func TestRealTimelessFactionsConquerors(t *testing.T) {
+// TestRealTimelessVersionNames checks that the real 3.30 dataset names the faction and unique
+// jewel of each version of the six unique timeless jewels, and the conqueror of each of their
+// keystones.
+func TestRealTimelessVersionNames(t *testing.T) {
 	t.Parallel()
 	s := realDataset(t, "3.30.0.1")
 	names, err := s.Names("en")
 	if err != nil {
 		t.Fatal(err)
 	}
-	factions, conquerors := map[string]string{}, map[string]string{}
+	factions, jewels, conquerors := map[string]string{}, map[string]string{}, map[string]string{}
 	for _, n := range names.TimelessVersionNames {
 		factions[n.ID] = n.Name
+	}
+	for _, n := range names.TimelessJewelNames {
+		jewels[n.ID] = n.Name
 	}
 	for _, n := range names.ConquerorNames {
 		conquerors[n.ID] = n.Name
@@ -155,6 +159,13 @@ func TestRealTimelessFactionsConquerors(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantFactions, factions); diff != "" {
 		t.Errorf("faction names mismatch (-want +got):\n%s", diff)
+	}
+	wantJewels := map[string]string{
+		"Vaal": "Glorious Vanity", "Karui": "Lethal Pride", "Maraketh": "Brutal Restraint", "Templar": "Militant Faith",
+		"Eternal": "Elegant Hubris", "Kalguuran": "Heroic Tragedy",
+	}
+	if diff := cmp.Diff(wantJewels, jewels); diff != "" {
+		t.Errorf("jewel names mismatch (-want +got):\n%s", diff)
 	}
 	tree, err := s.Tree("standard")
 	if err != nil {

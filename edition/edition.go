@@ -1,7 +1,8 @@
 // Package edition holds what pbt-extract knows about a game edition that its game data does
 // not say, such as constants, names for columns dat-schema leaves unnamed, totem links and how
-// older game files number a column's values, each with a note and a source. Each edition has a
-// folder: <game>/constants.json, <game>/columns.json, <game>/totems.json and <game>/values.json.
+// older game files number a column's values, and which unique jewel uses each timeless version,
+// each with a note and a source. Each edition has a folder: <game>/constants.json,
+// <game>/columns.json, <game>/totems.json, <game>/values.json and <game>/timeless.json.
 package edition
 
 import (
@@ -26,6 +27,18 @@ type Edition struct {
 	Columns   []ColumnName
 	Totems    []Totem
 	Values    []Values
+	Jewels    []TimelessJewel
+}
+
+// TimelessJewel is a link the game data does not hold: the unique jewel whose mod names a
+// timeless version.
+type TimelessJewel struct {
+	// Version is the AlternateTreeVersions.Id.
+	Version string `json:"version"`
+	// Name is the jewel's English name, as the Words unique item list holds it.
+	Name   string `json:"name"`
+	Note   string `json:"note"`
+	Source string `json:"source"`
 }
 
 // Values is how the game files of a league and those before it number a column whose values
@@ -99,7 +112,8 @@ func (e *Edition) ColumnNames() []dat.ColumnName {
 // Load returns the edition game from its folder. Every constant needs an id, per, note and
 // source; every column name a table, after, gap (or gaps, when dat-schema lays the gap out
 // differently by patch), position, name, note and source; every value map a table, column,
-// league, map, note and source.
+// league, map, note and source; every timeless jewel a version, name, note and source, one per
+// version.
 func Load(game string) (*Edition, error) {
 	var c struct {
 		Constants []Constant `json:"constants"`
@@ -170,6 +184,23 @@ func Load(game string) (*Edition, error) {
 		}
 	}
 	e.Values = v.Values
+	var j struct {
+		Jewels []TimelessJewel `json:"jewels"`
+	}
+	if err := readJSON(game, "timeless.json", &j); err != nil {
+		return nil, err
+	}
+	versions := map[string]bool{}
+	for _, k := range j.Jewels {
+		if k.Version == "" || k.Name == "" || k.Note == "" || k.Source == "" {
+			return nil, fmt.Errorf("%s/timeless.json: jewel of version %q needs version, name, note and source", game, k.Version)
+		}
+		if versions[k.Version] {
+			return nil, fmt.Errorf("%s/timeless.json: version %s given twice", game, k.Version)
+		}
+		versions[k.Version] = true
+	}
+	e.Jewels = j.Jewels
 	return e, nil
 }
 

@@ -27,6 +27,9 @@ type Input struct {
 	Constants []dataset.Constant
 	// EditionTotems are the totem links the game data does not hold.
 	EditionTotems []dataset.EditionTotem
+	// TimelessJewels are the unique jewels of the timeless versions, which the game data does not
+	// link to their versions.
+	TimelessJewels []TimelessJewel
 	// Values are the columns whose values the game files number otherwise than the schema's
 	// enumeration. Only GemEffects.ItemColor is read through a map.
 	Values []ColumnValues
@@ -157,6 +160,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		}
 		timeless, names, err := timelessVersions(r, schema, len(d.Stats), warn)
 		if err != nil {
+			return nil, err
+		}
+		if names.Jewels, err = jewelNames(r, schema, timeless, in.TimelessJewels); err != nil {
 			return nil, err
 		}
 		text.TimelessNames, text.TimelessVersionNames, text.TimelessJewelNames, text.ConquerorNames =
