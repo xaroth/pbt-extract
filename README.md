@@ -47,7 +47,7 @@ Each character carries its unarmed damage and attack time from `Characters` (`Mi
 
 Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
-`edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed, each located by the named column before its gap and the gap's layout, or several layouts where dat-schema lays the gap out differently by patch, `totems.json` for the totems of supports, a link the game data does not hold; `values.json` for how the game files of older leagues number a column whose values the dat-schema enumeration numbers otherwise.
+`edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed, each located by the named column before its gap and the gap's layout, or several layouts where dat-schema lays the gap out differently by patch (a column that a layout is too short for, or of a table the patch's schema lacks, is one that patch does not have), `totems.json` for the totems of supports, a link the game data does not hold; `values.json` for how the game files of older leagues number a column whose values the dat-schema enumeration numbers otherwise.
 
 ## Develop
 
