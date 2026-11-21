@@ -150,5 +150,8 @@ func TestNameColumnsByLayout(t *testing.T) {
 				t.Errorf("with %q: Column(%q): got %d, %v, want %d, true", extra, name, got, ok, want)
 			}
 		}
+		if got, ok := def.Column("Name"); ok != (extra != "") || ok && got != 10 {
+			t.Errorf("with %q: Column(\"Name\"): got %d, %v", extra, got, ok)
+		}
 	}
 }

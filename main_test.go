@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -45,16 +46,17 @@ func TestEditionInput(t *testing.T) {
 	}
 }
 
-// realDataset builds the dataset of the 3.29 input directory $PBT_INPUT_3_29; ooz is $PBT_OOZ or
-// ooz from PATH. It skips without $PBT_INPUT_3_29.
-func realDataset(t *testing.T) *dataset.Store {
+// realDataset builds the dataset of version from the input directory $PBT_INPUT_<league>, such as
+// $PBT_INPUT_3_29; ooz is $PBT_OOZ or ooz from PATH. It skips without the input directory.
+func realDataset(t *testing.T, version string) *dataset.Store {
 	t.Helper()
-	in := os.Getenv("PBT_INPUT_3_29")
+	league := strings.Join(strings.Split(version, ".")[:2], "_")
+	in := os.Getenv("PBT_INPUT_" + league)
 	if in == "" {
-		t.Skip("PBT_INPUT_3_29 not set")
+		t.Skip("PBT_INPUT_" + league + " not set")
 	}
 	out := t.TempDir()
-	if err := run([]string{"-ooz", os.Getenv("PBT_OOZ"), "-version", "3.29.3.3", "dataset", in, out}); err != nil {
+	if err := run([]string{"-ooz", os.Getenv("PBT_OOZ"), "-version", version, "dataset", in, out}); err != nil {
 		t.Fatalf("dataset: %v", err)
 	}
 	s, err := dataset.Open(os.DirFS(out))
@@ -68,7 +70,7 @@ func realDataset(t *testing.T) *dataset.Store {
 // 3.29 dataset has its English name.
 func TestRealTimelessNames(t *testing.T) {
 	t.Parallel()
-	s := realDataset(t)
+	s := realDataset(t, "3.29.3.3")
 	names, err := s.Names("en")
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +110,7 @@ func TestRealTimelessNames(t *testing.T) {
 // Grace of GraceSkillCorrupted.
 func TestRealRuthlessGrants(t *testing.T) {
 	t.Parallel()
-	mods, err := realDataset(t).Mods()
+	mods, err := realDataset(t, "3.29.3.3").Mods()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,5 +131,54 @@ func TestRealRuthlessGrants(t *testing.T) {
 	}
 	if filled != 15 || differ != 14 {
 		t.Errorf("got %d mods with Ruthless grants, %d differing; want 15 and 14", filled, differ)
+	}
+}
+
+// TestRealTimelessFactionsConquerors checks that the real 3.30 dataset names the faction of each
+// version of the six unique timeless jewels, and the conqueror of each of their keystones.
+func TestRealTimelessFactionsConquerors(t *testing.T) {
+	t.Parallel()
+	s := realDataset(t, "3.30.0.1")
+	names, err := s.Names("en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	factions, conquerors := map[string]string{}, map[string]string{}
+	for _, n := range names.TimelessVersionNames {
+		factions[n.ID] = n.Name
+	}
+	for _, n := range names.ConquerorNames {
+		conquerors[n.ID] = n.Name
+	}
+	wantFactions := map[string]string{
+		"Vaal": "Vaal", "Karui": "Karui", "Maraketh": "Maraketh", "Templar": "Templars", "Eternal": "Eternal Empire", "Kalguuran": "Kalguur",
+	}
+	if diff := cmp.Diff(wantFactions, factions); diff != "" {
+		t.Errorf("faction names mismatch (-want +got):\n%s", diff)
+	}
+	tree, err := s.Tree("standard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keystones := 0
+	for _, v := range tree.TimelessVersions {
+		for _, r := range v.Replacements {
+			if r.Conqueror == (dataset.TimelessConqueror{}) {
+				continue
+			}
+			keystones++
+			if conquerors[r.ID] == "" {
+				t.Errorf("version %s keystone %s has no conqueror name", v.ID, r.ID)
+			}
+		}
+	}
+	if keystones == 0 {
+		t.Error("no conqueror keystones")
+	}
+	// 3.29's descriptions named vaal_keystone_2_v2's conqueror Ahuana; 3.30's game files name Mazcotl.
+	for id, name := range map[string]string{"vaal_keystone_1": "Xibaqua", "vaal_keystone_2_v2": "Mazcotl", "vaal_keystone_3": "Doryani"} {
+		if conquerors[id] != name {
+			t.Errorf("conqueror of %s: got %q, want %q", id, conquerors[id], name)
+		}
 	}
 }

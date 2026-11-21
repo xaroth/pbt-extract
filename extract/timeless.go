@@ -2,6 +2,7 @@ package extract
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/xaroth/pbt-engine/dataset"
@@ -21,6 +22,25 @@ type timelessVersionRow struct {
 	NotableMin               int32  `dat:"NotableAdditionsMin"`
 	NotableMax               int32  `dat:"NotableAdditionsMax"`
 	NotableReplacementChance int32  `dat:"NotableReplacementChance"`
+	Name                     string `dat:"Name,optional"`
+}
+
+// conquerorRow names the conqueror of a version's keystone and revision; from 3.30 on.
+type conquerorRow struct {
+	Version  dat.Ref `dat:"Version" ref:"AlternateTreeVersions"`
+	Keystone int32   `dat:"ConquerorIndex"`
+	Revision int32   `dat:"ConquerorVersion"`
+	Name     string  `dat:"Conqueror"`
+}
+
+// conquerorKey is a conqueror's version row, keystone and revision.
+type conquerorKey [3]int32
+
+// timelessText are the English names of the kept timeless versions: of their replacement
+// passives, factions and unique jewels by version id, and of their conquerors by the id of the
+// conqueror's keystone replacement.
+type timelessText struct {
+	Replacements, Factions, Jewels, Conquerors []dataset.Name
 }
 
 type timelessReplacementRow struct {
@@ -56,14 +76,20 @@ type timelessAdditionRow struct {
 const abyssPrefix = "Abyss"
 
 // timelessVersions reads the alternate tree versions with their replacement and addition rows,
-// up to the first Abyss version, and the English names of the kept replacements in table order.
+// up to the first Abyss version, and the English names of the kept versions in table order.
 // A jewel's mod names its version by game row, so a version after an Abyss one cannot keep its
 // row as its index; it is left out with its rows and a warning. A replacement without a name is
-// a warning.
-func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.TimelessVersion, []dataset.Name, error) {
+// a warning; so are a version with replacements and a conqueror's keystone without a name, in
+// game files that name factions and conquerors (3.30 on).
+func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string)) ([]dataset.TimelessVersion, timelessText, error) {
+	var text timelessText
 	versions, err := readRows[timelessVersionRow](r, s, "AlternateTreeVersions")
 	if err != nil {
-		return nil, nil, err
+		return nil, text, err
+	}
+	conquerors, err := readConquerors(r, s, len(versions), warn)
+	if err != nil {
+		return nil, text, err
 	}
 	var out []dataset.TimelessVersion
 	var dropped []int // rows of versions after an Abyss one
@@ -87,9 +113,8 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 	}
 	replacements, err := readRows[timelessReplacementRow](r, s, "AlternatePassiveSkills")
 	if err != nil {
-		return nil, nil, err
+		return nil, text, err
 	}
-	var names []dataset.Name
 	for i, row := range replacements {
 		v, keep, err := keptVersion(row.Version, len(versions), len(out))
 		if err == nil && keep {
@@ -99,17 +124,19 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 				if row.Name == "" {
 					warn(fmt.Sprintf("timeless passive %s has no name", row.ID))
 				} else {
-					names = append(names, dataset.Name{ID: row.ID, Name: row.Name})
+					text.Replacements = append(text.Replacements, dataset.Name{ID: row.ID, Name: row.Name})
 				}
+				text.Conquerors = appendConqueror(text.Conquerors, conquerors, v, row, warn)
 			}
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("AlternatePassiveSkills row %d (%s): %w", i, row.ID, err)
+			return nil, text, fmt.Errorf("AlternatePassiveSkills row %d (%s): %w", i, row.ID, err)
 		}
 	}
+	text.Factions = factionNames(versions, out, warn)
 	additions, err := readRows[timelessAdditionRow](r, s, "AlternatePassiveAdditions")
 	if err != nil {
-		return nil, nil, err
+		return nil, text, err
 	}
 	for i, row := range additions {
 		v, keep, err := keptVersion(row.Version, len(versions), len(out))
@@ -120,7 +147,7 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 			}
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("AlternatePassiveAdditions row %d (%s): %w", i, row.ID, err)
+			return nil, text, fmt.Errorf("AlternatePassiveAdditions row %d (%s): %w", i, row.ID, err)
 		}
 	}
 	for _, v := range dropped {
@@ -128,7 +155,56 @@ func timelessVersions(r ot.Reader, s *dat.Schema, nStats int, warn func(string))
 			versions[v].ID, v, countVersion(replacements, v, func(r timelessReplacementRow) dat.Ref { return r.Version }),
 			countVersion(additions, v, func(r timelessAdditionRow) dat.Ref { return r.Version })))
 	}
-	return out, names, nil
+	return out, text, nil
+}
+
+// readConquerors reads the conqueror names by version row, keystone and revision; none from
+// game files before 3.30.
+func readConquerors(r ot.Reader, s *dat.Schema, versions int, warn func(string)) (map[conquerorKey]string, error) {
+	rows, err := readOptionalRows[conquerorRow](r, s, "AlternateTreeVersionKeystones", warn)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[conquerorKey]string, len(rows))
+	for i, row := range rows {
+		v, err := rowOf(row.Version, versions, "AlternateTreeVersions")
+		if err != nil {
+			return nil, fmt.Errorf("AlternateTreeVersionKeystones row %d: %w", i, err)
+		}
+		out[conquerorKey{int32(v), row.Keystone, row.Revision}] = row.Name //nolint:gosec // a table row
+	}
+	return out, nil
+}
+
+// appendConqueror appends the name of the conqueror whose keystone row is, in version v, when
+// conquerors names any.
+func appendConqueror(names []dataset.Name, conquerors map[conquerorKey]string, v int, row timelessReplacementRow, warn func(string)) []dataset.Name {
+	if len(conquerors) == 0 || row.Conqueror == 0 {
+		return names
+	}
+	name := conquerors[conquerorKey{int32(v), row.Conqueror, row.ConqVer}] //nolint:gosec // a table row
+	if name == "" {
+		warn(fmt.Sprintf("timeless keystone %s has no conqueror name", row.ID))
+		return names
+	}
+	return append(names, dataset.Name{ID: row.ID, Name: name})
+}
+
+// factionNames returns the names of the kept versions, when the game files name any.
+func factionNames(rows []timelessVersionRow, kept []dataset.TimelessVersion, warn func(string)) []dataset.Name {
+	if !slices.ContainsFunc(rows, func(r timelessVersionRow) bool { return r.Name != "" }) {
+		return nil
+	}
+	var out []dataset.Name
+	for i, v := range kept {
+		switch {
+		case rows[i].Name != "":
+			out = append(out, dataset.Name{ID: v.ID, Name: rows[i].Name})
+		case len(v.Replacements) > 0: // a version without replacements, such as None, is no jewel's
+			warn(fmt.Sprintf("timeless version %s has no name", v.ID))
+		}
+	}
+	return out
 }
 
 // countVersion counts the rows whose version is row v.
