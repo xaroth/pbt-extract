@@ -30,7 +30,7 @@ var everyLeague = map[string]bool{
 	"PassiveTreeExpansionSkills": true, "PassiveTreeExpansionSpecialSkills": true, "Quest": true,
 	"QuestFlags": true, "QuestStaticRewards": true, "ShieldTypes": true, "SkillGems": true,
 	"SkillTotemVariations": true, "SpectreOverrides": true, "Stats": true, "Tags": true,
-	"Tinctures": true, "WeaponTypes": true,
+	"Tinctures": true, "WeaponTypes": true, "Words": true,
 }
 
 func tablePath(name string) string { return "Data/" + name + ".datc64" }

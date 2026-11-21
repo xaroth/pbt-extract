@@ -236,11 +236,14 @@ func writeArt(game *bundle.Archive, in input.Dir, out string) error {
 }
 
 // editionInput returns the part of a build's input that edition data gives for game version:
-// totems, constants and value maps.
+// totems, timeless jewels, constants and value maps.
 func editionInput(ed *edition.Edition, version string) (extract.Input, error) {
 	var bi extract.Input
 	for _, t := range ed.Totems {
 		bi.EditionTotems = append(bi.EditionTotems, dataset.EditionTotem{GrantedEffect: t.GrantedEffect, Totem: t.Totem, Source: t.Source})
+	}
+	for _, j := range ed.Jewels {
+		bi.TimelessJewels = append(bi.TimelessJewels, extract.TimelessJewel{Version: j.Version, Name: j.Name})
 	}
 	for _, c := range ed.Constants {
 		bi.Constants = append(bi.Constants, dataset.Constant{ID: c.ID, Value: c.Value, Per: c.Per})

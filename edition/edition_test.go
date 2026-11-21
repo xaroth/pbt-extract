@@ -27,6 +27,9 @@ func TestLoad(t *testing.T) {
 	if len(e.Totems) == 0 {
 		t.Error("got no totems, want the poe1 totems")
 	}
+	if len(e.Jewels) != 6 {
+		t.Errorf("got %d timeless jewels, want the 6 poe1 jewels", len(e.Jewels))
+	}
 	if _, err := edition.Load("nope"); err == nil {
 		t.Error("Load(nope): got nil error, want an error")
 	}

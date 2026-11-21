@@ -305,3 +305,47 @@ func statRanges(refs []dat.Ref, nStats int, ranges [][2]int32) ([]dataset.StatRa
 	}
 	return out, nil
 }
+
+// TimelessJewel names the unique jewel whose mod names a timeless version, a link the game data
+// does not hold.
+type TimelessJewel struct {
+	Version, Name string
+}
+
+type wordRow struct {
+	List uint32 `dat:"Wordlist"`
+	Text string `dat:"Text"`
+}
+
+// uniqueWordlist is the Wordlists value of unique item names.
+const uniqueWordlist = 6
+
+// jewelNames returns the names of the unique jewels of the kept versions, by version id. A jewel
+// of a version the game files do not keep, or whose name is not a unique item name in Words,
+// fails the build.
+func jewelNames(r ot.Reader, s *dat.Schema, versions []dataset.TimelessVersion, jewels []TimelessJewel) ([]dataset.Name, error) {
+	if len(jewels) == 0 {
+		return nil, nil
+	}
+	words, err := readRows[wordRow](r, s, "Words")
+	if err != nil {
+		return nil, err
+	}
+	uniques := map[string]bool{}
+	for _, w := range words {
+		if w.List == uniqueWordlist {
+			uniques[w.Text] = true
+		}
+	}
+	var out []dataset.Name
+	for _, j := range jewels {
+		if !slices.ContainsFunc(versions, func(v dataset.TimelessVersion) bool { return v.ID == j.Version }) {
+			return nil, fmt.Errorf("timeless jewel %s: no kept version %s", j.Name, j.Version)
+		}
+		if !uniques[j.Name] {
+			return nil, fmt.Errorf("timeless jewel %s of version %s: not a unique item name in Words", j.Name, j.Version)
+		}
+		out = append(out, dataset.Name{ID: j.Version, Name: j.Name})
+	}
+	return out, nil
+}
