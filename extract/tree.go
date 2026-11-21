@@ -53,7 +53,7 @@ func readTreeTables(r ot.Reader, schema *dat.Schema, stats []dataset.Stat, grant
 	if t.buffTemplates, err = readTable(r, schema, "BuffTemplates", "BuffDefinitionsKey", "Buff_StatValues"); err != nil {
 		return nil, err
 	}
-	if t.buffDefs, err = readTable(r, schema, "BuffDefinitions", "StatsKeys"); err != nil {
+	if t.buffDefs, err = readTable(r, schema, "BuffDefinitions", "StatsKeys", "GrantedFlags"); err != nil {
 		return nil, err
 	}
 	if t.byGraphID, err = index(t.passives, "PassiveSkillGraphId"); err != nil {
@@ -325,7 +325,8 @@ func (tt *treeTables) statValues(t table, row int, statsCol, valueFmt string) ([
 	return out, nil
 }
 
-// buff pairs a BuffTemplates row's values with its BuffDefinitions stats.
+// buff pairs a BuffTemplates row's values with its BuffDefinitions stats, followed by the
+// definition's flags at value 1, as their stat descriptions read them.
 func (tt *treeTables) buff(row int) ([]dataset.StatValue, error) {
 	def, err := tt.buffTemplates.ref(row, "BuffDefinitionsKey")
 	if err != nil {
@@ -338,24 +339,35 @@ func (tt *treeTables) buff(row int) ([]dataset.StatValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	vals, err := tt.buffTemplates.i32s(row, "Buff_StatValues")
+	flags, err := tt.buffDefs.ints(def, "GrantedFlags")
 	if err != nil {
 		return nil, err
 	}
-	if len(keys) == 0 {
-		return nil, nil // visual-only buff
+	vals, err := tt.buffTemplates.i32s(row, "Buff_StatValues")
+	if err != nil {
+		return nil, err
 	}
 	// Some templates carry extra trailing values with no stat; they are not displayed.
 	if len(vals) < len(keys) {
 		return nil, fmt.Errorf("BuffTemplates row %d: %d values for %d stats", row, len(vals), len(keys))
 	}
-	vals = vals[:len(keys)]
 	var out []dataset.StatValue
-	for i, v := range vals {
-		if keys[i] < 0 || keys[i] >= len(tt.stats) {
-			return nil, fmt.Errorf("stat row %d out of range", keys[i])
+	add := func(k int, v int32) error {
+		if k < 0 || k >= len(tt.stats) {
+			return fmt.Errorf("stat row %d out of range", k)
 		}
-		out = append(out, dataset.StatValue{Stat: uint32(keys[i]), Value: v})
+		out = append(out, dataset.StatValue{Stat: uint32(k), Value: v})
+		return nil
 	}
-	return out, nil
+	for i, k := range keys {
+		if err := add(k, vals[i]); err != nil {
+			return nil, err
+		}
+	}
+	for _, k := range flags {
+		if err := add(k, 1); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil // nil for a visual-only buff
 }

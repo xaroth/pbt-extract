@@ -317,6 +317,26 @@ func TestDataset(t *testing.T) {
 	}
 }
 
+// A buff's flags, stats without a value, follow its stats at value 1, also on a buff with no
+// other stats.
+func TestDatasetBuffFlags(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	g["Data/BuffDefinitions.datc64"] = &fstest.MapFile{Data: encodeBuffDefs(t,
+		buffDef{id: "tailwind", stats: []int{4}, flags: []int{3}},
+		buffDef{id: "action_speed_cap", flags: []int{1}})}
+	in := input(t, g, export())
+	in.Trees = in.Trees[:1]
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := [][]dataset.StatValue{{{Stat: 4, Value: -5}, {Stat: 3, Value: 1}}, {{Stat: 1, Value: 1}}}
+	if diff := cmp.Diff(want, got.Trees[0].Nodes[1].Buffs); diff != "" {
+		t.Errorf("buffs mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestDatasetProxyWithoutRow(t *testing.T) {
 	t.Parallel()
 	e := export()
