@@ -183,21 +183,27 @@ func TestTimelessNames(t *testing.T) {
 	}
 }
 
-// The edition names the unique jewel of each version; the name must be a unique item name.
+// The edition names the unique jewel of each version; the name must be a unique item name. A
+// jewel of a version the game files do not keep, as an older league lacks a newer version, is
+// left out with a warning.
 func TestTimelessJewelNames(t *testing.T) {
 	t.Parallel()
+	vaal := extract.TimelessJewel{Version: "Vaal", Name: "Glorious Vanity"}
 	testCases := []struct {
-		name    string
-		jewels  []extract.TimelessJewel
-		want    []dataset.Name
-		wantErr string
+		name         string
+		jewels       []extract.TimelessJewel
+		want         []dataset.Name
+		wantWarnings []string
+		wantErr      string
 	}{
-		{name: "named", jewels: []extract.TimelessJewel{{Version: "Vaal", Name: "Glorious Vanity"}},
-			want: []dataset.Name{{ID: "Vaal", Name: "Glorious Vanity"}}},
+		{name: "named", jewels: []extract.TimelessJewel{vaal}, want: []dataset.Name{{ID: "Vaal", Name: "Glorious Vanity"}}},
 		{name: "none"},
 		{name: "not a unique item name", jewels: []extract.TimelessJewel{{Version: "Vaal", Name: "Dire"}}, wantErr: "not a unique item name"},
-		{name: "unknown version", jewels: []extract.TimelessJewel{{Version: "Karui", Name: "Lethal Pride"}}, wantErr: "no kept version Karui"},
-		{name: "a version left out", jewels: []extract.TimelessJewel{{Version: "AbyssMurderous", Name: "Lethal Pride"}}, wantErr: "no kept version"},
+		{name: "unknown version", jewels: []extract.TimelessJewel{{Version: "Karui", Name: "Lethal Pride"}, vaal},
+			want:         []dataset.Name{{ID: "Vaal", Name: "Glorious Vanity"}},
+			wantWarnings: []string{"timeless jewel Lethal Pride: no kept version Karui; left out"}},
+		{name: "a version left out", jewels: []extract.TimelessJewel{{Version: "AbyssMurderous", Name: "Lethal Pride"}},
+			wantWarnings: []string{"timeless jewel Lethal Pride: no kept version AbyssMurderous; left out"}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -209,6 +215,12 @@ func TestTimelessJewelNames(t *testing.T) {
 				[]any{uint32(1), "Dire"}, []any{uint32(6), "Glorious Vanity"}, []any{uint32(6), "Lethal Pride"})}
 			in := input(t, g, export())
 			in.TimelessJewels = testCase.jewels
+			var warnings []string
+			in.Warn = func(msg string) {
+				if strings.HasPrefix(msg, "timeless jewel ") {
+					warnings = append(warnings, msg)
+				}
+			}
 			got, err := extract.Dataset(in)
 			if testCase.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), testCase.wantErr) {
@@ -221,6 +233,9 @@ func TestTimelessJewelNames(t *testing.T) {
 			}
 			if diff := cmp.Diff(testCase.want, got.Texts[0].TimelessJewelNames); diff != "" {
 				t.Errorf("jewel names mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(testCase.wantWarnings, warnings); diff != "" {
+				t.Errorf("warnings mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

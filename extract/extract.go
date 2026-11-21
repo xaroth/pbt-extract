@@ -162,7 +162,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		if err != nil {
 			return nil, err
 		}
-		if names.Jewels, err = jewelNames(r, schema, timeless, in.TimelessJewels); err != nil {
+		if names.Jewels, err = jewelNames(r, schema, timeless, in.TimelessJewels, warn); err != nil {
 			return nil, err
 		}
 		text.TimelessNames, text.TimelessVersionNames, text.TimelessJewelNames, text.ConquerorNames =
