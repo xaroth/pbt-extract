@@ -273,6 +273,8 @@ func TestRealGrantLines(t *testing.T) {
 		"PetrificationStatueUnique__1":      "Grants Level 1 Petrification Statue",
 		"HungryLoopSupportedByEarthbreaker": "Socketed Gems are Supported by Level 20 Earthbreaker",
 		"OneAncestorTotemBuffUnique__1":     "Socketed Gems are Supported by Level 25 Earthbreaker",
+		// a handler that names the skill
+		"GrantShaperSkill_1": "Grants Level 20 Summon Shaper Memory\nGrants Level 20 Shaper's Devastation, which will be used by Shaper Memory",
 	} {
 		i := slices.IndexFunc(mods, func(m dataset.Mod) bool { return m.ID == id })
 		if i < 0 {
