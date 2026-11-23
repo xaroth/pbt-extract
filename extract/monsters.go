@@ -205,7 +205,8 @@ func monsters(r ot.Reader, s *dat.Schema, handles map[string]uint32, totems []da
 }
 
 // overridePrefix starts a template Stats entry that replaces an inherited stat's value, such as
-// set_item_drop_slots, rather than naming a stat.
+// set_item_drop_slots, rather than naming a stat. A real stat may start with it too, such as
+// set_user_life_to_1_on_skill_use, so an entry is an override only when it is not in Stats.
 const overridePrefix = "set_"
 
 // varietyTemplates reads the own stats of variety object templates, each template once. The
@@ -226,7 +227,7 @@ func (t varietyTemplates) stats(path string) ([]dataset.StatValue, error) {
 		return nil, err
 	}
 	for id := range stats {
-		if strings.HasPrefix(id, overridePrefix) {
+		if _, isStat := t.handles[id]; !isStat && strings.HasPrefix(id, overridePrefix) {
 			t.overrides[id] = true
 			delete(stats, id)
 		}
