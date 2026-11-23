@@ -121,11 +121,12 @@ func grantNames(r ot.Reader, s *dat.Schema) (map[string]grantName, error) {
 
 // rebuildGrantLines gives each grant stat a description built from the templates, and its mods
 // the level of their grant as its range, as the descriptions up to 3.29 have them ("Grants Level
-// {0} Envy Skill" for local_display_grants_level_X_envy at [25, 25]). A grant stat is a stat that
-// item has no description for, that every mod with it grants one named effect, the same one, at
-// [0, 0] or at the grant's level, and that every other mod with it holds at [0, 0]. A stat
-// that mods granting different effects share, such as local_display_summon_harbinger_x_on_equip,
-// cannot name them in one line: it is left as it is, with a warning.
+// {0} Envy Skill" for local_display_grants_level_X_envy at [25, 25]). A mod that grants one named
+// effect has at most one grant stat (see grantStat). A stat is given a line when it is the grant
+// stat of some mods, all granting the same effect, and every other mod with it holds it at
+// [0, 0]. A stat that mods granting different effects share, such as
+// local_display_summon_harbinger_x_on_equip, cannot name them in one line: it is left as it is,
+// with a warning.
 func rebuildGrantLines(mods []dataset.Mod, stats []dataset.Stat, item *statdesc.Scope, names map[string]grantName, t grantTemplates, warn func(string)) {
 	described := map[string]bool{}
 	for _, d := range item.Descriptions {
@@ -135,10 +136,16 @@ func rebuildGrantLines(mods []dataset.Mod, stats []dataset.Stat, item *statdesc.
 	}
 	type use struct{ mod, stat int }
 	uses := map[uint32][]use{}
+	own := map[use]bool{} // the grant stat of its mod
 	for i, m := range mods {
 		for j, ms := range m.Stats {
 			if !described[stats[ms.Stat].ID] {
 				uses[ms.Stat] = append(uses[ms.Stat], use{i, j})
+			}
+		}
+		if g, _, one := namedGrant(m.GrantedSkills, names); one {
+			if j := grantStat(m, g.Level, stats, described); j >= 0 {
+				own[use{i, j}] = true
 			}
 		}
 	}
@@ -147,17 +154,12 @@ func rebuildGrantLines(mods []dataset.Mod, stats []dataset.Stat, item *statdesc.
 		levels := map[use]int32{}
 		ok, differ := true, false
 		for _, u := range uses[h] {
-			m, ms := mods[u.mod], mods[u.mod].Stats[u.stat]
-			zero := ms.Min == 0 && ms.Max == 0
-			if len(m.GrantedSkills) == 0 {
-				ok = ok && zero
+			ms := mods[u.mod].Stats[u.stat]
+			if !own[u] {
+				ok = ok && ms.Min == 0 && ms.Max == 0
 				continue
 			}
-			g, n, one := namedGrant(m.GrantedSkills, names)
-			if !one || !zero && (ms.Min != g.Level || ms.Max != g.Level) {
-				ok = false
-				continue
-			}
+			g, n, _ := namedGrant(mods[u.mod].GrantedSkills, names)
 			if line != nil && *line != n {
 				differ = true
 			}
@@ -188,6 +190,30 @@ func rebuildGrantLines(mods []dataset.Mod, stats []dataset.Stat, item *statdesc.
 			}
 		}
 	}
+}
+
+// grantStat returns the index in m.Stats of the stat that carries m's grant: its one undescribed
+// stat at [0, 0], as 3.30 holds them, or without one its only undescribed stat if that is at the
+// grant's level, as a few 3.30 mods have it. Otherwise -1: an undescribed flag such as
+// sound_on_rare_kill_ice_whisper at 1 beside the grant stat is not one.
+func grantStat(m dataset.Mod, level int32, stats []dataset.Stat, described map[string]bool) int {
+	var zero, other []int
+	for j, ms := range m.Stats {
+		switch {
+		case described[stats[ms.Stat].ID]:
+		case ms.Min == 0 && ms.Max == 0:
+			zero = append(zero, j)
+		default:
+			other = append(other, j)
+		}
+	}
+	switch {
+	case len(zero) == 1:
+		return zero[0]
+	case len(zero) == 0 && len(other) == 1 && m.Stats[other[0]].Min == level && m.Stats[other[0]].Max == level:
+		return other[0]
+	}
+	return -1
 }
 
 // namedGrant returns the one grant of gs that has a name, and reports whether there is exactly
