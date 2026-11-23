@@ -20,6 +20,7 @@ import (
 
 const schemaJSON = `{"version": 7, "tables": [` + skillTablesJSON + monsterTablesJSON + overrideTablesJSON + jewelTablesJSON + timelessTablesJSON + `
 	{"name": "Stats", "columns": [{"name": "Id", "type": "string"}]},
+	{"name": "ClientStrings", "columns": [{"name": "Id", "type": "string"}, {"name": "Text", "type": "string"}]},
 	{"name": "Characters", "columns": [
 		{"name": "Id", "type": "string"}, {"name": "Name", "type": "string"}, {"name": "IntegerId", "type": "i32"},
 		{"name": "BaseStrength", "type": "i32"}, {"name": "BaseDexterity", "type": "i32"},
@@ -144,6 +145,8 @@ func game(t *testing.T) fstest.MapFS {
 		"Data/Stats.datc64": {Data: encode(t, "Stats",
 			[]any{"level"}, []any{"life_per_level"}, []any{"base_speed"}, []any{"base_strength"}, []any{"aura_damage_+%"},
 		)},
+		// No grant line templates, as up to 3.29.
+		"Data/ClientStrings.datc64": {Data: encode(t, "ClientStrings", []any{"GameName", "Path of Exile"})},
 		"Data/Characters.datc64": {Data: encode(t, "Characters",
 			[]any{"Metadata/Characters/Str/Str", "Marauder", int32(0), int32(32), int32(14), int32(14), int32(38), int32(34), int32(2), int32(8), int32(833)},
 		)},

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/xaroth/pbt-engine/dataset"
+	"github.com/xaroth/pbt-engine/statdesc"
 
 	"github.com/xaroth/pbt-extract/edition"
 	"github.com/xaroth/pbt-extract/extract"
@@ -232,5 +233,55 @@ func TestRealAnimatedGuardianStats(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRealGrantLines checks that the real 3.30 dataset has the lines of item mods that grant a
+// skill or support, which 3.30's game files build from ClientStrings rather than describe, with
+// the grant's level as the stat's range.
+func TestRealGrantLines(t *testing.T) {
+	t.Parallel()
+	s := realDataset(t, "3.30.0.1")
+	stats, err := s.Stats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, err := s.Mods()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := s.Text("en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	set, err := statdesc.NewSet(text.Descriptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{
+		"GrantsEnvyUnique__1":                              "Grants Level 25 Envy",
+		"ItemActsAsConcentratedAOESupportUniqueHelmetInt4": "Socketed Gems are Supported by Level 20 Concentrated Effect",
+	} {
+		i := slices.IndexFunc(mods, func(m dataset.Mod) bool { return m.ID == id })
+		if i < 0 {
+			t.Errorf("no mod %s", id)
+			continue
+		}
+		m := mods[i]
+		if len(m.Stats) != 1 || len(m.GrantedSkills) == 0 {
+			t.Errorf("mod %s: got %d stats and grants %v, want one stat and a grant", id, len(m.Stats), m.GrantedSkills)
+			continue
+		}
+		ms, level := m.Stats[0], m.GrantedSkills[0].Level
+		if ms.Min != level || ms.Max != level {
+			t.Errorf("mod %s: got range [%d, %d], want [%d, %d]", id, ms.Min, ms.Max, level, level)
+		}
+		lines, err := set.Describe("Metadata/StatDescriptions/stat_descriptions.txt", map[string]int32{stats[ms.Stat].ID: ms.Min})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(lines) != 1 || lines[0].Text != want {
+			t.Errorf("mod %s: got lines %+v, want %q", id, lines, want)
+		}
 	}
 }

@@ -136,6 +136,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		return nil, err
 	}
 	text.ItemClassNames, text.BaseNames, text.ModNames = names.classes, names.bases, names.mods
+	if err := grantLines(r, schema, d.Mods, d.Stats, text.Descriptions, warn); err != nil {
+		return nil, err
+	}
 	var skillText skillNames
 	if d.Skills, skillText, err = skills(r, schema, len(d.Stats), values[gemStyleColumn]); err != nil {
 		return nil, err

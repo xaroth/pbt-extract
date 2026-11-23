@@ -16,7 +16,7 @@ var everyLeague = map[string]bool{
 	"ActiveSkills": true, "ActiveSkillType": true, "AlternatePassiveAdditions": true,
 	"AlternatePassiveSkills": true, "AlternateTreeVersions": true, "ArmourTypes": true,
 	"BaseItemTypes": true, "BuffDefinitions": true, "BuffTemplates": true, "Characters": true,
-	"ComponentCharges": true, "CostTypes": true, "CraftingBenchOptions": true,
+	"ClientStrings": true, "ComponentCharges": true, "CostTypes": true, "CraftingBenchOptions": true,
 	"CraftingItemClassCategories": true, "DefaultMonsterStats": true, "DisplayMinionMonsterType": true,
 	"EffectivenessCostConstants": true, "Essences": true, "Flasks": true, "GemEffects": true,
 	"GemTags": true, "GrantedEffectQualityStats": true, "GrantedEffects": true,
