@@ -235,12 +235,16 @@ func TestMonsters(t *testing.T) {
 }
 
 // TestMonsterTemplateOverrides checks that a template's set_ overrides of inherited stats, which
-// the dataset cannot hold, are left out with one warning.
+// the dataset cannot hold, are left out with one warning, and that a set_ entry that is a stat is kept.
 func TestMonsterTemplateOverrides(t *testing.T) {
 	t.Parallel()
 	g := game(t)
+	g["Data/Stats.datc64"] = &fstest.MapFile{Data: encode(t, "Stats",
+		[]any{"level"}, []any{"life_per_level"}, []any{"base_speed"}, []any{"base_strength"}, []any{"aura_damage_+%"},
+		[]any{"set_user_life_to_1_on_skill_use"},
+	)}
 	g[zombieTemplate+".ot"] = &fstest.MapFile{Data: utf16le("extends \"Metadata/Monsters/Monster\"\n" +
-		"Stats\n{\n\tset_item_drop_slots = 0\n\tbase_strength = 7\n\tset_is_double = 1\n}\n")}
+		"Stats\n{\n\tset_item_drop_slots = 0\n\tbase_strength = 7\n\tset_user_life_to_1_on_skill_use = 1\n\tset_is_double = 1\n}\n")}
 	in := input(t, g, export())
 	var warnings []string
 	in.Warn = func(msg string) { warnings = append(warnings, msg) }
@@ -248,7 +252,7 @@ func TestMonsterTemplateOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dataset: %v", err)
 	}
-	want := []dataset.StatValue{{Stat: 3, Value: 7}}
+	want := []dataset.StatValue{{Stat: 3, Value: 7}, {Stat: 5, Value: 1}}
 	if diff := cmp.Diff(want, got.Monsters.Varieties[0].Stats); diff != "" {
 		t.Errorf("zombie stats mismatch (-want +got):\n%s", diff)
 	}
