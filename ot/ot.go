@@ -223,6 +223,13 @@ func (p *parser) skipSpace() {
 				return
 			}
 			p.pos += end
+		case strings.HasPrefix(p.src[p.pos:], "/*"):
+			end := strings.Index(p.src[p.pos+2:], "*/")
+			if end < 0 {
+				p.pos = len(p.src)
+				return
+			}
+			p.pos += end + 4
 		default:
 			return
 		}

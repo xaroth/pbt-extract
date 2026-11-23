@@ -26,6 +26,7 @@ const sample = "version 3\r\nabstract\r\nextends \"nothing\"\r\n\r\n" +
 	"Buffs { }\r\n" +
 	"Actor\r\n{\t\r\n\tbasic_action = \"Move\"\r\n\tbasic_action = \"Dance\"\r\n}\r\n" +
 	"// Targetable {}\r\n" +
+	"/* Hidden\r\n{\r\n\tx = 1\r\n} */\r\n" +
 	"client\r\n{\r\n\tRender\r\n\t{\r\n\t\tscale = 5.0\r\n\t\tfade = true\r\n\t}\r\n}\r\n" +
 	"StateMachine\r\n{\r\n\ton_open =\r\n\t{\r\n\t\tPlay( 'open' ); // it's open\r\n" +
 	"\t\tIf( x, (){ Add( \"a}b\" ); } );\r\n\t}\r\n\tlabel =\r\n\t\"two\r\nlines\"\r\n}\r\n"
@@ -100,6 +101,14 @@ func TestStats(t *testing.T) {
 	}
 	if diff := cmp.Diff(map[string]int{"a": 1, "b": -3, "c": 4}, got); diff != "" {
 		t.Errorf("Stats mismatch (-want +got):\n%s", diff)
+	}
+
+	got, err = ot.OwnStats(fsys, "Metadata/Leaf")
+	if err != nil {
+		t.Fatalf("OwnStats: %v", err)
+	}
+	if diff := cmp.Diff(map[string]int{"b": -3, "c": 4}, got); diff != "" {
+		t.Errorf("OwnStats mismatch (-want +got):\n%s", diff)
 	}
 
 	got, err = ot.Stats(fsys, "Metadata/EmptyStats")
