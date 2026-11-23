@@ -45,6 +45,8 @@ Stat descriptions are read from each `Metadata/StatDescriptions` file as `.txt`,
 
 Each character carries its unarmed damage and attack time from `Characters` (`MinDamage`, `MaxDamage`, `WeaponSpeed`). A mod carries the skills it grants from `Mods.GrantedEffectsPerLevelKeys`, and a tree node the skill it grants from `PassiveSkills.GrantedEffectsPerLevel`, each as a granted effect and level; a ruthless tree reads `GrantedEffectsPerLevelHardmode` for every node, as some nodes without `HasHardmodeAlternate` grant a ruthless skill of their own. A mod also carries the skills it grants in Ruthless from `Mods.GrantedEffectRuthless` when that column lists any, such as the HardMode Grace of a corrupted Grace implicit. Monster mods carry no granted skills. A tree node's buffs carry the stats of their `BuffDefinitions` row (`StatsKeys`) with the `BuffTemplates` values, then the row's `GrantedFlags`, stats without a value, at 1, which is how their stat descriptions read them, such as Tailwind's `has_tailwind`.
 
+Each monster variety carries the Stats block of its own object template, the `.ot` file its `BaseMonsterTypeIndex` names, which often differs from its id; what the template inherits from `Monster.ot` is the monsters group's base stats. Entries starting `set_`, such as `set_item_drop_slots`, override an inherited stat rather than name one; the dataset holds no overrides, so they are left out with a warning. A template stat that is not in `Stats` fails the build.
+
 Which game version uses which depot manifest, dat-schema commit and tree export commit is kept in [pbt-data](https://github.com/xaroth/pbt-data), which builds and publishes the datasets.
 
 `edition/<game>/` holds what the game data of an edition does not say, each entry with a note and source: `constants.json` for constants, `columns.json` for our names of columns dat-schema leaves unnamed, each located by the named column before its gap and the gap's layout, or several layouts where dat-schema lays the gap out differently by patch (a column that a layout is too short for, or of a table the patch's schema lacks, is one that patch does not have; an empty layout is a schema that names the column itself, so our name is dat-schema's), `totems.json` for the totems of supports, a link the game data does not hold; `values.json` for how the game files of older leagues number a column whose values the dat-schema enumeration numbers otherwise; `timeless.json` for the unique jewel whose mod names each timeless version.
@@ -57,7 +59,7 @@ go test ./...
 golangci-lint run
 ```
 
-`TestRealTimelessNames` and `TestRealRuthlessGrants` build the dataset of a 3.29 input directory named by `$PBT_INPUT_3_29`, and `TestRealTimelessVersionNames` that of a 3.30 one named by `$PBT_INPUT_3_30`, with ooz from `$PBT_OOZ` or `PATH`; each skips without its directory:
+`TestRealTimelessNames` and `TestRealRuthlessGrants` build the dataset of a 3.29 input directory named by `$PBT_INPUT_3_29`, `TestRealTimelessVersionNames` that of a 3.30 one named by `$PBT_INPUT_3_30`, and `TestRealAnimatedGuardianStats` both, with ooz from `$PBT_OOZ` or `PATH`; each skips without its directory:
 
 ```sh
 PBT_INPUT_3_29=/path/to/in-3.29 PBT_INPUT_3_30=/path/to/in-3.30 go test -run Real .
