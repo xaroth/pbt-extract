@@ -139,6 +139,9 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 	if err := grantLines(r, schema, d.Mods, d.Stats, text.Descriptions); err != nil {
 		return nil, err
 	}
+	if err := shaperLines(r, schema, text.Descriptions, warn); err != nil {
+		return nil, err
+	}
 	var skillText skillNames
 	if d.Skills, skillText, err = skills(r, schema, len(d.Stats), values[gemStyleColumn]); err != nil {
 		return nil, err
