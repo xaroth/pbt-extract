@@ -47,19 +47,45 @@ func Stats(r Reader, path string) (map[string]int, error) {
 	}
 	stats := map[string]int{}
 	for _, c := range slices.Backward(files) {
-		b, ok := c.Block("Stats")
-		if !ok {
-			continue
-		}
-		for _, fd := range b.Fields {
-			v, err := strconv.Atoi(fd.Value)
-			if err != nil {
-				return nil, fmt.Errorf("stat %s: %w", fd.Key, err)
-			}
-			stats[fd.Key] = v
+		if err := addStats(stats, c); err != nil {
+			return nil, err
 		}
 	}
 	return stats, nil
+}
+
+// OwnStats returns the Stats block of the object at path (without .ot) alone, without what it
+// inherits.
+func OwnStats(r Reader, path string) (map[string]int, error) {
+	b, err := r.ReadFile(path + ".ot")
+	if err != nil {
+		return nil, err
+	}
+	f, err := Parse(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s.ot: %w", path, err)
+	}
+	stats := map[string]int{}
+	if err := addStats(stats, f); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// addStats sets the stats of f's Stats block in stats.
+func addStats(stats map[string]int, f *File) error {
+	b, ok := f.Block("Stats")
+	if !ok {
+		return nil
+	}
+	for _, fd := range b.Fields {
+		v, err := strconv.Atoi(fd.Value)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", fd.Key, err)
+		}
+		stats[fd.Key] = v
+	}
+	return nil
 }
 
 // ItemTags returns the tags of the item template at path (without .it): the tag fields of its

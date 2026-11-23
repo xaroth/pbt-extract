@@ -96,6 +96,11 @@ func templateStats(r ot.Reader, path string, handles map[string]uint32) ([]datas
 	if err != nil {
 		return nil, err
 	}
+	return statValues(path, stats, handles)
+}
+
+// statValues returns the stats of the template at path as stat handles sorted by stat.
+func statValues(path string, stats map[string]int, handles map[string]uint32) ([]dataset.StatValue, error) {
 	var out []dataset.StatValue
 	for id, v := range stats {
 		h, ok := handles[id]

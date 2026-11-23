@@ -193,3 +193,44 @@ func TestRealTimelessVersionNames(t *testing.T) {
 		}
 	}
 }
+
+// TestRealAnimatedGuardianStats checks that the Animated Guardian of the real 3.29 and 3.30
+// datasets holds the stats of its own template, AnimatedArmour.ot, which no mod gives it.
+func TestRealAnimatedGuardianStats(t *testing.T) {
+	t.Parallel()
+	want := map[string]int32{
+		"main_hand_local_minimum_added_physical_damage": 2,
+		"main_hand_local_maximum_added_physical_damage": 6,
+		"dual_wield_inherent_attack_speed_+%_final":     10,
+		"block_while_dual_wielding_%":                   15,
+	}
+	for _, version := range []string{"3.29.3.3", "3.30.0.1"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			s := realDataset(t, version)
+			stats, err := s.Stats()
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, err := s.Monsters()
+			if err != nil {
+				t.Fatal(err)
+			}
+			i := slices.IndexFunc(m.Varieties, func(v dataset.MonsterVariety) bool {
+				return v.ID == "Metadata/Monsters/AnimatedItem/AnimatedArmour"
+			})
+			if i < 0 {
+				t.Fatal("no Animated Guardian variety")
+			}
+			got := map[string]int32{}
+			for _, sv := range m.Varieties[i].Stats {
+				got[stats[sv.Stat].ID] = sv.Value
+			}
+			for id, v := range want {
+				if got[id] != v {
+					t.Errorf("stat %s: got %d, want %d", id, got[id], v)
+				}
+			}
+		})
+	}
+}

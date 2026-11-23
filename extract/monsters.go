@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/xaroth/pbt-engine/dataset"
 
@@ -50,7 +51,10 @@ type monsterTypeRow struct {
 }
 
 type monsterVarietyRow struct {
-	ID               string    `dat:"Id"`
+	ID string `dat:"Id"`
+	// Template is the object template path the variety spawns, without .ot. It often differs
+	// from ID.
+	Template         string    `dat:"BaseMonsterTypeIndex"`
 	Type             dat.Ref   `dat:"MonsterTypesKey" ref:"MonsterTypes"`
 	Mods             []dat.Ref `dat:"ModsKeys" ref:"Mods"`
 	Tags             []dat.Ref `dat:"TagsKeys" ref:"Tags"`
@@ -114,7 +118,7 @@ type minionTypeRow struct {
 // monsters reads the monsters group, every list in table order except levels, sorted by level,
 // and totems, by key, and the English monster names. handles maps stat ids to stat handles;
 // totems are the edition's links the game data does not hold.
-func monsters(r ot.Reader, s *dat.Schema, handles map[string]uint32, totems []dataset.EditionTotem) (*dataset.Monsters, []dataset.Name, error) {
+func monsters(r ot.Reader, s *dat.Schema, handles map[string]uint32, totems []dataset.EditionTotem, warn func(string)) (*dataset.Monsters, []dataset.Name, error) {
 	m := &dataset.Monsters{EditionTotems: totems}
 	var err error
 	if m.BaseStats, err = templateStats(r, MonsterTemplate, handles); err != nil {
@@ -174,22 +178,65 @@ func monsters(r ot.Reader, s *dat.Schema, handles map[string]uint32, totems []da
 	if refs.effects, err = readIDs(r, s, "GrantedEffects"); err != nil {
 		return nil, nil, err
 	}
+	tmpl := varietyTemplates{r: r, handles: handles, read: map[string][]dataset.StatValue{}, overrides: map[string]bool{}}
 	var names []dataset.Name
 	for i, x := range varieties {
 		v, err := refs.variety(x)
 		if err != nil {
 			return nil, nil, fmt.Errorf("table MonsterVarieties row %d: %w", i, err)
 		}
+		if v.Stats, err = tmpl.stats(x.Template); err != nil {
+			return nil, nil, fmt.Errorf("monster variety %s: %w", x.ID, err)
+		}
 		m.Varieties = append(m.Varieties, v)
 		if x.Name != "" {
 			names = append(names, dataset.Name{ID: x.ID, Name: x.Name})
 		}
+	}
+	if len(tmpl.overrides) > 0 {
+		warn(fmt.Sprintf("monster templates: %s overrides of %d stats left out, such as %s", overridePrefix, len(tmpl.overrides),
+			slices.Min(slices.Collect(maps.Keys(tmpl.overrides)))))
 	}
 	varietyIDs := ids(varieties, func(x monsterVarietyRow) string { return x.ID })
 	if err := monsterLinks(r, s, varietyIDs, len(handles), m); err != nil {
 		return nil, nil, err
 	}
 	return m, names, nil
+}
+
+// overridePrefix starts a template Stats entry that replaces an inherited stat's value, such as
+// set_item_drop_slots, rather than naming a stat.
+const overridePrefix = "set_"
+
+// varietyTemplates reads the own stats of variety object templates, each template once. The
+// dataset holds no overrides, so they are left out and collected in overrides.
+type varietyTemplates struct {
+	r         ot.Reader
+	handles   map[string]uint32
+	read      map[string][]dataset.StatValue
+	overrides map[string]bool
+}
+
+func (t varietyTemplates) stats(path string) ([]dataset.StatValue, error) {
+	if svs, ok := t.read[path]; ok {
+		return svs, nil
+	}
+	stats, err := ot.OwnStats(t.r, path)
+	if err != nil {
+		return nil, err
+	}
+	for id := range stats {
+		if strings.HasPrefix(id, overridePrefix) {
+			t.overrides[id] = true
+			delete(stats, id)
+		}
+	}
+	svs, err := statValues(path, stats, t.handles)
+	if err != nil {
+		return nil, err
+	}
+	t.read[path] = svs
+	return svs, nil
 }
 
 func monsterLevels(r ot.Reader, s *dat.Schema) ([]dataset.MonsterLevel, error) {

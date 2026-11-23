@@ -141,7 +141,7 @@ func Dataset(in Input) (*dataset.Dataset, error) {
 		return nil, err
 	}
 	text.GemNames, text.SkillNames = skillText.gems, skillText.skills
-	if d.Monsters, text.MonsterNames, err = monsters(r, schema, handles, in.EditionTotems); err != nil {
+	if d.Monsters, text.MonsterNames, err = monsters(r, schema, handles, in.EditionTotems, warn); err != nil {
 		return nil, err
 	}
 	if len(in.Trees) > 0 {

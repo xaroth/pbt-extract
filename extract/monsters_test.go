@@ -45,7 +45,7 @@ const monsterTablesJSON = `
 		{"name": "Part1_ModsKeys", "type": "foreignrow", "array": true},
 		{"name": "Part2_ModsKeys", "type": "foreignrow", "array": true},
 		{"name": "Endgame_ModsKeys", "type": "foreignrow", "array": true},
-		{"name": "AilmentThreshold", "type": "i32"}]},
+		{"name": "AilmentThreshold", "type": "i32"}, {"name": "BaseMonsterTypeIndex", "type": "string"}]},
 	{"name": "DefaultMonsterStats", "columns": [
 		{"name": "DisplayLevel", "type": "string"}, {"name": "Damage", "type": "f32"},
 		{"name": "Evasion", "type": "i32"}, {"name": "Accuracy", "type": "i32"}, {"name": "MonsterLife", "type": "i32"},
@@ -74,11 +74,18 @@ var monsterMods = []string{"MonsterMods2", "MonsterSpecial", "MonsterPart1", "Mo
 // monsterMod returns the Mods row of monsterMods[i].
 func monsterMod(i int) int { return len(itemMods()) + i }
 
-// monsterVariety is a MonsterVarieties row with the given mods and no other lists.
-func monsterVariety(id, name string, typ int, mods ...int) []any {
+// monsterVariety is a MonsterVarieties row with the given template and mods and no other lists.
+func monsterVariety(id, name string, typ int, template string, mods ...int) []any {
 	return []any{id, typ, mods, []int(nil), []int(nil), []int(nil), name, int32(100), int32(100), int32(1000),
-		dattest.Null, dattest.Null, []int(nil), []int(nil), []int(nil), []int(nil), int32(100)}
+		dattest.Null, dattest.Null, []int(nil), []int(nil), []int(nil), []int(nil), int32(100), template}
 }
+
+// Object templates of the monster fixture. A variety's template is its BaseMonsterTypeIndex,
+// not its Id: ZombieSpectre shares the zombie's.
+const (
+	zombieTemplate = "Metadata/Monsters/Zombie/Zombie"
+	totemTemplate  = "Metadata/Monsters/Totem"
+)
 
 // monsterLevel is a DefaultMonsterStats row with life and damage only.
 func monsterLevel(level string, difficulty, life int32, damage float32) []any {
@@ -101,10 +108,10 @@ func monsterRows() map[string][][]any {
 			// every column set
 			{"Metadata/Monsters/Zombie", 0, []int{modMonster}, []int{tagLife}, []int{0}, []int{monsterMod(0)},
 				"Zombie", int32(165), int32(375), int32(1200), 0, 2,
-				[]int{monsterMod(1)}, []int{monsterMod(2)}, []int{monsterMod(3)}, []int{monsterMod(4)}, int32(150)},
-			monsterVariety("Metadata/Monsters/TotemA", "Totem", 1),
-			monsterVariety("Metadata/Monsters/TotemB", "", 1),
-			monsterVariety("Metadata/Monsters/ZombieSpectre", "Zombie", 0),
+				[]int{monsterMod(1)}, []int{monsterMod(2)}, []int{monsterMod(3)}, []int{monsterMod(4)}, int32(150), zombieTemplate},
+			monsterVariety("Metadata/Monsters/TotemA", "Totem", 1, totemTemplate),
+			monsterVariety("Metadata/Monsters/TotemB", "", 1, totemTemplate),
+			monsterVariety("Metadata/Monsters/ZombieSpectre", "Zombie", 0, zombieTemplate),
 		},
 		// out of level order
 		"DefaultMonsterStats": {
@@ -120,7 +127,8 @@ func monsterRows() map[string][][]any {
 	}
 }
 
-// monsterFiles encodes rows as table files, with Monster.ot and Mods.
+// monsterFiles encodes rows as table files, with Monster.ot, the variety templates and Mods. The
+// zombie template's own stats are base_strength and base_speed.
 func monsterFiles(t *testing.T, rows map[string][][]any) fstest.MapFS {
 	t.Helper()
 	mods := itemMods()
@@ -129,7 +137,10 @@ func monsterFiles(t *testing.T, rows map[string][][]any) fstest.MapFS {
 	}
 	g := fstest.MapFS{
 		"Metadata/Monsters/Monster.ot": {Data: utf16le("extends \"nothing\"\nStats\n{\n\tbase_speed = 10\n\tlevel = 1\n}\n")},
-		"Data/Mods.datc64":             {Data: encodeMods(t, mods...)},
+		zombieTemplate + ".ot": {Data: utf16le("extends \"Metadata/Monsters/Monster\"\n/* Stats\n{\n\tlevel = 9\n} */\n" +
+			"Stats\n{\n\tbase_strength = 7\n\tbase_speed = -2\n}\n")},
+		totemTemplate + ".ot": {Data: utf16le("extends \"Metadata/Monsters/Monster\"\nLife\n{\n}\n")},
+		"Data/Mods.datc64":    {Data: encodeMods(t, mods...)},
 	}
 	for table, rs := range rows {
 		g["Data/"+table+".datc64"] = &fstest.MapFile{Data: encode(t, table, rs...)}
@@ -149,6 +160,11 @@ func TestMonsters(t *testing.T) {
 	var plainMods []dataset.Mod
 	for _, id := range monsterMods {
 		plainMods = append(plainMods, dataset.Mod{ID: id, Domain: 3, Generation: 3, Type: "IncreasedLife"})
+	}
+	zombieStats := []dataset.StatValue{{Stat: 2, Value: -2}, {Stat: 3, Value: 7}}
+	withStats := func(v dataset.MonsterVariety, stats []dataset.StatValue) dataset.MonsterVariety {
+		v.Stats = stats
+		return v
 	}
 	plain := func(id, typ string) dataset.MonsterVariety {
 		return dataset.MonsterVariety{ID: id, Type: typ, LifeMultiplier: 100, DamageMultiplier: 100, AttackTime: 1000, AilmentThreshold: 100}
@@ -172,10 +188,12 @@ func TestMonsters(t *testing.T) {
 				// one mod per list, so a list read from the wrong column fails
 				Mods: []string{"MonsterLife"}, Mods2: []string{"MonsterMods2"}, SpecialMods: []string{"MonsterSpecial"},
 				Part1Mods: []string{"MonsterPart1"}, Part2Mods: []string{"MonsterPart2"}, EndgameMods: []string{"MonsterEndgame"},
+				// the template's own stats, sorted by stat, without Monster.ot's
+				Stats: zombieStats,
 			},
 			plain("Metadata/Monsters/TotemA", "Totem"),
 			plain("Metadata/Monsters/TotemB", "Totem"),
-			plain("Metadata/Monsters/ZombieSpectre", "Zombie"),
+			withStats(plain("Metadata/Monsters/ZombieSpectre", "Zombie"), zombieStats),
 		},
 		// sorted by level
 		Levels: []dataset.MonsterLevel{
@@ -216,6 +234,30 @@ func TestMonsters(t *testing.T) {
 	}
 }
 
+// TestMonsterTemplateOverrides checks that a template's set_ overrides of inherited stats, which
+// the dataset cannot hold, are left out with one warning.
+func TestMonsterTemplateOverrides(t *testing.T) {
+	t.Parallel()
+	g := game(t)
+	g[zombieTemplate+".ot"] = &fstest.MapFile{Data: utf16le("extends \"Metadata/Monsters/Monster\"\n" +
+		"Stats\n{\n\tset_item_drop_slots = 0\n\tbase_strength = 7\n\tset_is_double = 1\n}\n")}
+	in := input(t, g, export())
+	var warnings []string
+	in.Warn = func(msg string) { warnings = append(warnings, msg) }
+	got, err := extract.Dataset(in)
+	if err != nil {
+		t.Fatalf("Dataset: %v", err)
+	}
+	want := []dataset.StatValue{{Stat: 3, Value: 7}}
+	if diff := cmp.Diff(want, got.Monsters.Varieties[0].Stats); diff != "" {
+		t.Errorf("zombie stats mismatch (-want +got):\n%s", diff)
+	}
+	wantWarnings := []string{"monster templates: set_ overrides of 2 stats left out, such as set_is_double"}
+	if diff := cmp.Diff(wantWarnings, warnings); diff != "" {
+		t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestMonstersErrors(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -229,6 +271,11 @@ func TestMonstersErrors(t *testing.T) {
 		{name: "template stat unknown", game: func(g fstest.MapFS) {
 			g["Metadata/Monsters/Monster.ot"] = &fstest.MapFile{Data: utf16le("extends \"nothing\"\nStats\n{\n\tnew_stat = 1\n}\n")}
 		}, error: "stat new_stat not in Stats"},
+		{name: "variety template missing", game: func(g fstest.MapFS) { delete(g, totemTemplate+".ot") },
+			error: "monster variety Metadata/Monsters/TotemA: open " + totemTemplate + ".ot"},
+		{name: "variety template stat unknown", game: func(g fstest.MapFS) {
+			g[zombieTemplate+".ot"] = &fstest.MapFile{Data: utf16le("extends \"nothing\"\nStats\n{\n\tnew_stat = 1\n}\n")}
+		}, error: "monster variety Metadata/Monsters/Zombie: " + zombieTemplate + ".ot: stat new_stat not in Stats"},
 		{name: "level not a number", edit: func(r map[string][][]any) { r["DefaultMonsterStats"][0][0] = "2a" }, error: `DisplayLevel "2a" is not a level`},
 		{name: "resistances out of range", edit: func(r map[string][][]any) { r["MonsterTypes"][0][7] = 9 }, error: "MonsterTypes row 0: MonsterResistances row 9 out of range"},
 		{name: "variety without type", edit: func(r map[string][][]any) { r["MonsterVarieties"][1][1] = dattest.Null }, error: "MonsterVarieties row 1: null MonsterTypes reference"},
