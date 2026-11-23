@@ -237,8 +237,8 @@ func TestRealAnimatedGuardianStats(t *testing.T) {
 }
 
 // TestRealGrantLines checks that the real 3.30 dataset has the lines of item mods that grant a
-// skill or support, which 3.30's game files build from ClientStrings rather than describe, with
-// the grant's level as the stat's range.
+// skill or support, which 3.30's game files build from ClientStrings rather than describe: one
+// mod per kind of grant stat.
 func TestRealGrantLines(t *testing.T) {
 	t.Parallel()
 	s := realDataset(t, "3.30.0.1")
@@ -259,29 +259,37 @@ func TestRealGrantLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	for id, want := range map[string]string{
+		// a stat 3.30 no longer describes
 		"GrantsEnvyUnique__1":                              "Grants Level 25 Envy",
 		"ItemActsAsConcentratedAOESupportUniqueHelmetInt4": "Socketed Gems are Supported by Level 20 Concentrated Effect",
+		// a stat mods granting different effects share
+		"HarbingerSkillOnEquipUnique__2": "Grants Level 1 Summon Harbinger of Time",
+		"GrantsSummonBeastUrsaUnique__1": "Grants Level 20 Summon Bestial Ursa",
+		// a stat 3.30 still describes but holds at 0
+		"GrantsFrostbiteUnique__1":                    "Grants Level 5 Frostbite",
+		"SocketedGemsSupportedByPierceUniqueBodyStr6": "Socketed Gems are Supported by Level 15 Pierce",
+		"HungryLoopSupportedByInvertTheRules":         "Socketed Gems are Supported by Level 3 Invert the Rules",
+		// a stat another mod granting the same effect holds at another value
+		"PetrificationStatueUnique__1":      "Grants Level 1 Petrification Statue",
+		"HungryLoopSupportedByEarthbreaker": "Socketed Gems are Supported by Level 20 Earthbreaker",
+		"OneAncestorTotemBuffUnique__1":     "Socketed Gems are Supported by Level 25 Earthbreaker",
 	} {
 		i := slices.IndexFunc(mods, func(m dataset.Mod) bool { return m.ID == id })
 		if i < 0 {
 			t.Errorf("no mod %s", id)
 			continue
 		}
-		m := mods[i]
-		if len(m.Stats) != 1 || len(m.GrantedSkills) == 0 {
-			t.Errorf("mod %s: got %d stats and grants %v, want one stat and a grant", id, len(m.Stats), m.GrantedSkills)
+		values := map[string]int32{}
+		for _, ms := range mods[i].Stats {
+			values[stats[ms.Stat].ID] = ms.Min
+		}
+		lines, err := set.Describe("Metadata/StatDescriptions/stat_descriptions.txt", values)
+		if err != nil {
+			t.Errorf("mod %s: %v", id, err)
 			continue
 		}
-		ms, level := m.Stats[0], m.GrantedSkills[0].Level
-		if ms.Min != level || ms.Max != level {
-			t.Errorf("mod %s: got range [%d, %d], want [%d, %d]", id, ms.Min, ms.Max, level, level)
-		}
-		lines, err := set.Describe("Metadata/StatDescriptions/stat_descriptions.txt", map[string]int32{stats[ms.Stat].ID: ms.Min})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(lines) != 1 || lines[0].Text != want {
-			t.Errorf("mod %s: got lines %+v, want %q", id, lines, want)
+		if !slices.ContainsFunc(lines, func(l statdesc.Line) bool { return l.Text == want }) {
+			t.Errorf("mod %s: got lines %+v, want %q among them", id, lines, want)
 		}
 	}
 }
